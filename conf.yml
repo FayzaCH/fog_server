@@ -1,0 +1,105 @@
+CONTROLLER:
+  # OpenFlow port (default is 6633)
+  OFP_PORT: 6633
+  
+  # controller's decoy MAC (no default, required)
+    # can be anything but must not already exist
+  DECOY_MAC: dd:dd:dd:dd:dd:dd
+  
+  # controller's decoy IP (no default, required)
+    # must be in subnet of hosts and must not already exist
+  DECOY_IP: 10.0.0.254
+
+  # absolute path to ryu installation root directory (no default, required)
+  PATH: /home/ouarab/ryu
+
+NETWORK:
+  # spanning-tree protocol (default is False)
+    # if true, it doesn't enable STP but supposes that it is already enabled
+  STP_ENABLED: True
+  
+  # ARP table refresh interval (in seconds, default is 60)
+  ARP_REFRESH: 60
+  
+  # hosts IP pool(s) (default is empty)
+    # pool format <range1>,<range2>, ... ,<value1>,<value2>, ...
+    # range format <start_IP>:<end_IP>
+  IP_POOL: >
+    10.0.0.1:10.0.0.5,
+    10.10.0.10:10.10.0.12,
+    10.20.0.10:10.20.0.12,
+    10.30.0.10:10.30.0.12,
+    10.10.0.254,
+    10.20.0.254,
+    10.30.0.254,
+    10.0.0.250
+
+ORCHESTRATOR:
+  # web server's REST API port (default is 8080)
+  API_PORT: 8080
+
+  # UDP server's port (default is 7070)
+  UDP_PORT: 7070
+
+  # UDP connection timeout (in seconds, default is 3)
+    # when exceeded, client will be disconnected
+  UDP_TIMEOUT: 3
+  
+  # enable/disable path selection (default is False)
+    # only works if STP is disabled (multi-path)
+  PATHS: False
+
+PROTOCOL:
+  # requests destination (default is NONE)
+    # options are BROADCAST | ORCHESTRATOR | NONE
+    # BROADCAST only works if STP is enabled (to avoid broadcast storms)
+    # NONE means protocol is not used
+  SEND_TO: ORCHESTRATOR
+  
+  # time to wait for answer after sending a packet (in seconds, default is 1)
+  TIMEOUT: 1
+  
+  # number of times to send an unanswered packet (default is 3)
+  RETRIES: 3
+  
+  # enable/disable printing detailed protocol messages on console (default is False)
+  VERBOSE: True
+
+SIMULATOR:
+  # enable/disable simulator (default is False)
+    # if True, host capacities will be simulated (real constraints will be ignored)
+    # if False, real monitoring will be enabled on hosts
+  ACTIVE: False
+  
+  # interval for randomly simulated execution time (in seconds, default is [0, 1])
+  EXEC_MIN: 0.0001
+  EXEC_MAX: 0.0001
+
+MONITOR:
+  # monitoring interval (in seconds, default is 1)
+  PERIOD: 2
+  
+  # number of samples of measures to retain (default and minimum is 2)
+  SAMPLES: 5
+  
+  # enable/disable printing monitoring data on console (default is False)
+  VERBOSE: True
+
+DATABASE:
+  # absolute path to database (default is :memory:)
+  PATH: ':memory:'
+
+OPENSTACK:
+  # enable/disable SSL certificate verification for OpenStack API (default is False)
+  VERIFY_CERT: False
+  
+  # OpenStack API credentials and settings (no defaults, optional)
+  URL: https://dash.cloud.cerist.dz
+  AUTH_PORT: 5000
+  GNOCCHI_PORT: 8041
+  USERNAME: oyoucef
+  PASSWORD: pass
+  USER_DOMAIN_ID: default
+  USER_ID: 40bea06eefdc4dbb97cdbe03fb3d3b75
+  PROJECT_ID: 701ed6e74e5e41e48519e444cebe8598
+  ARCHIVE_POLICY: ceilometer-low
