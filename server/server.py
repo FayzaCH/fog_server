@@ -31,21 +31,14 @@ except:
 
 RYU_PATH = getenv('CONTROLLER_PATH', '')
 RYU_BIN_PATH = join(RYU_PATH, 'bin', 'ryu')
-RYU_GUI_PATH = join(RYU_PATH, 'ryu', 'app', 'gui_topology', 'gui_topology.py')
 
 RYU_MAIN_PATH = dirname(abspath(__file__)) + '/ryu_main.py'
 
 
 def serve():
-    cmd = [RYU_BIN_PATH if exists(RYU_BIN_PATH) else 'ryu', 'run']
-    if exists(RYU_GUI_PATH):
-        cmd.append(RYU_GUI_PATH)
-    else:
-        print(' *** WARNING in server.serve:',
-              RYU_GUI_PATH, 'not found. Make sure to configure '
-              'CONTROLLER:PATH parameter in conf.yml')
-    cmd.extend([RYU_MAIN_PATH, '--observe-links', '--ofp-tcp-listen-port',
-                str(OFP_PORT), '--wsapi-port', str(API_PORT)])
+    cmd = [RYU_BIN_PATH if exists(RYU_BIN_PATH) else 'ryu', 'run', 
+           RYU_MAIN_PATH, '--observe-links', '--ofp-tcp-listen-port',
+           str(OFP_PORT), '--wsapi-port', str(API_PORT)]
     try:
         run(cmd)
 

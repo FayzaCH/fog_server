@@ -124,8 +124,7 @@ class RyuMainAPI(ControllerBase):
         super(RyuMainAPI, self).__init__(req, link, data, **config)
         self.ryu_main = data['ryu_main']
 
-    # this route is used by gui_topology
-    # @route('root', '/')
+    @route('root', '/')
     def root(self, _):
         return 'API is working!'
 
