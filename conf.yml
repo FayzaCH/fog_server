@@ -54,7 +54,7 @@ PROTOCOL:
     # options are BROADCAST | ORCHESTRATOR | NONE
     # BROADCAST only works if STP is enabled (to avoid broadcast storms)
     # NONE means protocol is not used
-  SEND_TO: ORCHESTRATOR
+  SEND_TO: BROADCAST
   
   # time to wait for answer after sending a packet (in seconds, default is 1)
   TIMEOUT: 1
