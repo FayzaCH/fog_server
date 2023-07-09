@@ -346,7 +346,7 @@ class Topology(RyuApp):
         datapath = switch.dp
         dpid = datapath.id
         self.add_node(dpid, datapath.is_active,
-                      NodeType(NodeType.SWITCH), f'{dpid:x}')
+                      NodeType(NodeType.SWITCH), f's_{dpid:x}')
         for port in switch.ports:
             self.add_interface(dpid, port.name.decode(), port.port_no)
 
