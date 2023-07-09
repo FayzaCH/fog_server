@@ -159,7 +159,7 @@ class DelayMonitor(RyuApp):
                 try:
                     s_timestamp = float(icmp_pkt.data.data)
 
-                except ValueError:
+                except:
                     return
 
                 else:
