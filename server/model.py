@@ -956,6 +956,8 @@ class Request(Model):
         -----------
         id: Request ID.
 
+        src: Source Node/IP.
+
         cos: Required CoS.
 
         data: Input data bytes.
@@ -1093,6 +1095,8 @@ class Attempt(Model):
         -----------
         req_id: Request ID.
 
+        src: Source IP.
+
         attempt_no: Attempt number.
 
         host: Network application host IP address.
@@ -1133,6 +1137,8 @@ class Response(Model):
         -----------
         req_id: Request ID.
 
+        src: Source IP.
+
         attempt_no: Attempt number.
 
         host: Network application host IP address.
@@ -1142,13 +1148,10 @@ class Response(Model):
         ram: RAM size offered by host.
 
         disk: Disk size offered by host.
-
-        timestamp: Response timestamp.
     '''
 
-    def __init__(self, req_id, src: str, attempt_no: int, host: str, 
-                 cpu: int = None, ram: float = None, disk: float = None,
-                 timestamp: float = 0):
+    def __init__(self, req_id, src: str, attempt_no: int, host: str,
+                 cpu: int = None, ram: float = None, disk: float = None):
         self.req_id = req_id
         self.src = src
         self.attempt_no = attempt_no
@@ -1156,6 +1159,45 @@ class Response(Model):
         self.cpu = cpu
         self.ram = ram
         self.disk = disk
-        if not timestamp:
-            timestamp = time()
-        self.timestamp = timestamp
+
+
+class Path(Model):
+    '''
+        Path to network application host.
+
+        Attributes:
+        -----------
+        req_id: Request ID.
+
+        src: Source node IP.
+
+        attempt_no: Attempt number.
+
+        path: Path to network application host.
+
+        bandwidths: List of path links bandwidths (in Mbps).
+
+        delays: List of path links delays (in seconds).
+
+        jitters: List of path links jitters (in seconds).
+
+        loss_rates: List of path links loss rates.
+
+        weight_type: Path weight type (hop, delay, etc.).
+
+        weight: Path weight.
+    '''
+
+    def __init__(self, req_id, src: str, attempt_no: int, path: list,
+                 bandwidths: list, delays: list, jitters: list, 
+                 loss_rates: list, weight_type: str, weight: float):
+        self.req_id = req_id
+        self.src = src
+        self.attempt_no = attempt_no
+        self.path = path
+        self.bandwidths = bandwidths
+        self.delays = delays
+        self.jitters = jitters
+        self.loss_rates = loss_rates
+        self.weight_type = weight_type
+        self.weight = weight

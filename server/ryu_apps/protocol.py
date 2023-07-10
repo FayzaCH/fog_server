@@ -30,7 +30,7 @@ from scapy.all import (Packet, ByteEnumField, StrLenField, IntEnumField,
                        StrField, IntField, ConditionalField, bind_layers,
                        Ether, IP)
 
-from model import CoS, Request, Response
+from model import CoS, Request, Response, Path
 from selection import (NodeSelector, SIMPLE_NODE, PathSelector, DIJKSTRA_PATH,
                        DELAY_WEIGHT)
 from common import *
@@ -308,7 +308,7 @@ class Protocol(RyuApp):
                     self._topology.get_graph(), hosts, req, DELAY_WEIGHT)
                 if paths:
                     spawn(self._save_paths,
-                          _req_id, my_proto.attempt_no, paths)
+                          _req_id, my_proto.attempt_no, paths, lengths, DELAY_WEIGHT)
                     for target, _ in sorted(lengths.items(),
                                             key=lambda x: x[1]):
                         info('Selecting host')
@@ -382,8 +382,28 @@ class Protocol(RyuApp):
                      host.get_cpu(), host.get_ram(), host.get_disk()).insert()
             Response.as_csv()
 
-    def _save_paths(self, _req_id, attempt_no, paths):
-        pass
+    def _save_paths(self, _req_id, attempt_no, paths, weights, weight_type):
+        src_ip, req_id = _req_id
+        for host, path in paths.items():
+            _path = [src_ip]
+            bandwidths = []
+            delays = []
+            jitters = []
+            loss_rates = []
+            len_path = len(path)
+            for i in range(1, len_path):
+                if i < len_path - 1:
+                    _path.append(f'{path[i]:x}')
+                link = self._topology.get_link(path[i-1], path[i])
+                if i == len_path - 1:
+                    _path.append(link.dst_port.ipv4)
+                bandwidths.append(link.get_bandwidth())
+                delays.append(link.get_delay())
+                jitters.append(link.get_jitter())
+                loss_rates.append(link.get_loss_rate())
+            Path(req_id, src_ip, attempt_no, _path, bandwidths, delays,
+                 jitters, loss_rates, weight_type, weights[host]).insert()
+            Path.as_csv()
 
     @set_ev_cls(EventOFPPacketIn, MAIN_DISPATCHER)
     def _protocol_handler(self, ev):

@@ -27,7 +27,7 @@ from sqlite3 import connect
 from csv import writer
 from json import load
 
-from model import Model, CoS, Request, Attempt, Response, Node
+from model import Model, CoS, Request, Attempt, Response, Node, Path
 from consts import ROOT_PATH
 import config
 
@@ -54,7 +54,8 @@ _tables = {
     CoS.__name__: 'cos',
     Request.__name__: 'requests',
     Attempt.__name__: 'attempts',
-    Response.__name__: 'responses'
+    Response.__name__: 'responses',
+    Path.__name__: 'paths',
 }
 
 # queue managing db operations from multiple threads
@@ -333,7 +334,12 @@ def _adapt(obj: Model):
 
     if obj.__class__.__name__ is Response.__name__:
         return (obj.req_id, obj.src, obj.attempt_no, obj.host, obj.cpu, 
-                obj.ram, obj.disk, obj.timestamp)
+                obj.ram, obj.disk)
+    
+    if obj.__class__.__name__ is Path.__name__:
+        return (obj.req_id, obj.src, obj.attempt_no, str(obj.path), 
+                str(obj.bandwidths), str(obj.delays), str(obj.jitters), 
+                str(obj.loss_rates), obj.weight_type, obj.weight)
 
 
 # decode table rows as objects
@@ -377,7 +383,12 @@ def _convert(itr: list, cls):
 
         if cls.__name__ is Response.__name__:
             obj = Response(item[0], item[1], item[2], item[3], item[4],
-                           item[5], item[6], item[7])
+                           item[5], item[6])
+        
+        if cls.__name__ is Path.__name__:
+            obj = Path(item[0], item[1], item[2], eval(item[3]), eval(item[4]),
+                       eval(item[5]), eval(item[6]), eval(item[7]), item[8], 
+                       item[9])
 
         ret.append(obj)
     return ret
@@ -400,8 +411,11 @@ def _get_columns(cls):
                 'hres_at', 'rres_at', 'dres_at')
 
     if cls.__name__ is Response.__name__:
-        return ('req_id', 'src', 'attempt_no', 'host', 'cpu', 'ram', 'disk',
-                'timestamp')
+        return ('req_id', 'src', 'attempt_no', 'host', 'cpu', 'ram', 'disk')
+    
+    if cls.__name__ is Path.__name__:
+        return ('req_id', 'src', 'attempt_no', 'path', 'bandwidths', 'delays', 
+                'jitters', 'loss_rates', 'weight_type', 'weight')
 
     return ()
 
