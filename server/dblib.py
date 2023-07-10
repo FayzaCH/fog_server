@@ -323,17 +323,17 @@ def _adapt(obj: Model):
     if obj.__class__.__name__ is Request.__name__:
         src = obj.src
         if isinstance(src, Node):
-            src = src.id
+            _, src = src.main_interface
         return (obj.id, src, obj.cos.id, obj.data, obj.result, obj.host,
                 obj.state, obj.hreq_at, obj.dres_at)
 
     if obj.__class__.__name__ is Attempt.__name__:
-        return (obj.req_id, obj.attempt_no, obj.host, obj.state, obj.hreq_at,
-                obj.hres_at, obj.rres_at, obj.dres_at)
+        return (obj.req_id, obj.src, obj.attempt_no, obj.host, obj.state, 
+                obj.hreq_at, obj.hres_at, obj.rres_at, obj.dres_at)
 
     if obj.__class__.__name__ is Response.__name__:
-        return (obj.req_id, obj.attempt_no, obj.host, obj.cpu, obj.ram,
-                obj.disk, obj.timestamp)
+        return (obj.req_id, obj.src, obj.attempt_no, obj.host, obj.cpu, 
+                obj.ram, obj.disk, obj.timestamp)
 
 
 # decode table rows as objects
@@ -373,11 +373,11 @@ def _convert(itr: list, cls):
 
         if cls.__name__ is Attempt.__name__:
             obj = Attempt(item[0], item[1], item[2], item[3], item[4], item[5],
-                          item[6], item[7])
+                          item[6], item[7], item[8])
 
         if cls.__name__ is Response.__name__:
             obj = Response(item[0], item[1], item[2], item[3], item[4],
-                           item[5], item[6])
+                           item[5], item[6], item[7])
 
         ret.append(obj)
     return ret
@@ -396,11 +396,11 @@ def _get_columns(cls):
                 'hreq_at', 'dres_at')
 
     if cls.__name__ is Attempt.__name__:
-        return ('req_id', 'attempt_no', 'host', 'state', 'hreq_at', 'hres_at',
-                'rres_at', 'dres_at')
+        return ('req_id', 'src', 'attempt_no', 'host', 'state', 'hreq_at', 
+                'hres_at', 'rres_at', 'dres_at')
 
     if cls.__name__ is Response.__name__:
-        return ('req_id', 'attempt_no', 'host', 'cpu', 'ram', 'disk',
+        return ('req_id', 'src', 'attempt_no', 'host', 'cpu', 'ram', 'disk',
                 'timestamp')
 
     return ()

@@ -30,7 +30,7 @@ from scapy.all import (Packet, ByteEnumField, StrLenField, IntEnumField,
                        StrField, IntField, ConditionalField, bind_layers,
                        Ether, IP)
 
-from model import CoS, Request
+from model import CoS, Request, Response
 from selection import (NodeSelector, SIMPLE_NODE, PathSelector, DIJKSTRA_PATH,
                        DELAY_WEIGHT)
 from common import *
@@ -299,7 +299,7 @@ class Protocol(RyuApp):
             self._topology.get_nodes().values(), req)
         host_ip = ''
         if hosts:
-            # TODO thread to save hosts
+            spawn(self._save_hosts, _req_id, my_proto.attempt_no, hosts)
             my_proto.state = RREQ
             my_proto.src_mac = eth_src
             my_proto.src_ip = ip_src.ljust(IP_LEN, ' ')
@@ -307,7 +307,8 @@ class Protocol(RyuApp):
                 lengths, paths = PathSelector(DIJKSTRA_PATH).select(
                     self._topology.get_graph(), hosts, req, DELAY_WEIGHT)
                 if paths:
-                    # TODO thread to save paths
+                    spawn(self._save_paths,
+                          _req_id, my_proto.attempt_no, paths)
                     for target, _ in sorted(lengths.items(),
                                             key=lambda x: x[1]):
                         info('Selecting host')
@@ -365,12 +366,24 @@ class Protocol(RyuApp):
                                           / my_proto, host_mac, _req_id)
                     if rres:
                         if rres[MyProtocol].state == RRES:
+                            # TODO update selected path in db/csv
                             return
                         if rres[MyProtocol].state == RCAN:
                             continue
         if req.state == RREQ:
             info('No hosts available')
             req.state = HREQ
+
+    def _save_hosts(self, _req_id, attempt_no, hosts):
+        src_ip, req_id = _req_id
+        for host in hosts:
+            _, host_ip = host.main_interface
+            Response(req_id, src_ip, attempt_no, host_ip,
+                     host.get_cpu(), host.get_ram(), host.get_disk()).insert()
+            Response.as_csv()
+
+    def _save_paths(self, _req_id, attempt_no, paths):
+        pass
 
     @set_ev_cls(EventOFPPacketIn, MAIN_DISPATCHER)
     def _protocol_handler(self, ev):

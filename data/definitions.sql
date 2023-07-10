@@ -46,6 +46,7 @@ create table if not exists requests (
 
 create table if not exists attempts (
 	req_id text not null,
+    src text not null,
   	attempt_no integer not null,
     host text,
     state integer,
@@ -54,11 +55,11 @@ create table if not exists attempts (
     rres_at real,
     dres_at real,
 
-    primary key (req_id, attempt_no),
+    primary key (req_id, src, attempt_no),
 
     constraint fk_req
-    foreign key (req_id)  
-    references requests (id)
+    foreign key (req_id, src)  
+    references requests (id, src)
 );
 
 -- ==================================
@@ -67,6 +68,7 @@ create table if not exists attempts (
 
 create table if not exists responses (
 	req_id text not null,
+    src text not null,
   	attempt_no integer not null,
     host text not null,
     cpu integer,
@@ -74,13 +76,13 @@ create table if not exists responses (
     disk real,
     timestamp real,
 
-    primary key (req_id, attempt_no, host),
+    primary key (req_id, src, attempt_no, host),
 
     constraint fk_req
-    foreign key (req_id)  
-    references requests (id),
+    foreign key (req_id, src)  
+    references requests (id, src),
 
     constraint fk_att
-    foreign key (req_id, attempt_no)
-    references attempts (req_id, attempt_no)
+    foreign key (req_id, src, attempt_no)
+    references attempts (req_id, src, attempt_no)
 );

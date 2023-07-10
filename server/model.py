@@ -1110,11 +1110,12 @@ class Attempt(Model):
         dres_at: Data exchange response timestamp (end of operation).
     '''
 
-    def __init__(self, req_id, attempt_no: int, host: str = None,
+    def __init__(self, req_id, src: str, attempt_no: int, host: str = None,
                  state: int = None, hreq_at: float = None,
                  hres_at: float = None, rres_at: float = None,
                  dres_at: float = None):
         self.req_id = req_id
+        self.src = src
         self.attempt_no = attempt_no
         self.host = host
         self.state = state
@@ -1145,10 +1146,11 @@ class Response(Model):
         timestamp: Response timestamp.
     '''
 
-    def __init__(self, req_id, attempt_no: int, host: str, cpu: int = None,
-                 ram: float = None, disk: float = None,
+    def __init__(self, req_id, src: str, attempt_no: int, host: str, 
+                 cpu: int = None, ram: float = None, disk: float = None,
                  timestamp: float = 0):
         self.req_id = req_id
+        self.src = src
         self.attempt_no = attempt_no
         self.host = host
         self.cpu = cpu
