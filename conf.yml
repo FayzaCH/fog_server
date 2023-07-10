@@ -85,10 +85,6 @@ MONITOR:
   # enable/disable printing monitoring data on console (default is False)
   VERBOSE: True
 
-DATABASE:
-  # absolute path to database (default is :memory:)
-  PATH: ':memory:'
-
 OPENSTACK:
   # enable/disable SSL certificate verification for OpenStack API (default is False)
   VERIFY_CERT: False

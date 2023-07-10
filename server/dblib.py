@@ -29,7 +29,6 @@ from json import load
 
 from model import Model, CoS, Request, Attempt, Response, Node, Path
 from consts import ROOT_PATH
-import config
 
 
 # table definitions
@@ -40,14 +39,8 @@ except:
           'definitions.sql file missing from server/data directory.')
     exit()
 
-# database config
-_db_path = getenv('DATABASE_PATH', None)
-if _db_path == None:
-    print(' *** WARNING in dblib: '
-          'DATABASE:PATH parameter invalid or missing from conf.yml. '
-          'Defaulting to in-memory database.')
-    _db_path = ':memory:'
-DB_PATH = _db_path
+# database file
+DB_PATH = ROOT_PATH + '/data/database.db'
 
 # table names
 _tables = {
