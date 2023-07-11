@@ -274,7 +274,6 @@ class RyuMainAPI(ControllerBase):
                         'node_id': id,
                         'name': str(interface['name']),
                     }))
-                    print(interface)
                     queue[-1][1]['timestamp'] = timestamp
                     queue[-1][1]['capacity'] = float(
                         interface['capacity']) if (
