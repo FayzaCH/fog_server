@@ -31,8 +31,8 @@ from scapy.all import (Packet, ByteEnumField, StrLenField, IntEnumField,
                        Ether, IP)
 
 from model import CoS, Request, Response, Path
-from selection import (NodeSelector, SIMPLE_NODE, PathSelector, DIJKSTRA_PATH,
-                       DELAY_WEIGHT)
+from selection import (NodeSelector, SIMPLE_NODE, PathSelector, LEASTCOST_PATH,
+                       COST_WEIGHT)
 from common import *
 
 
@@ -304,15 +304,18 @@ class Protocol(RyuApp):
             my_proto.src_mac = eth_src
             my_proto.src_ip = ip_src.ljust(IP_LEN, ' ')
             if not STP_ENABLED and ORCHESTRATOR_PATHS:
-                lengths, paths = PathSelector(DIJKSTRA_PATH).select(
-                    self._topology.get_graph(), hosts, req, DELAY_WEIGHT)
+                paths, weights = PathSelector(LEASTCOST_PATH).select(
+                    self._topology.get_graph(), hosts, req)
                 if paths:
                     spawn(self._save_paths,
-                          _req_id, my_proto.attempt_no, paths, lengths, DELAY_WEIGHT)
-                    for target, _ in sorted(lengths.items(),
-                                            key=lambda x: x[1]):
+                          _req_id, my_proto.attempt_no, paths, weights, COST_WEIGHT)
+                    weights_idx = []
+                    for target, _weights in weights.items():
+                        for i, weight in enumerate(_weights):
+                            weights_idx.append((target, i, weight))
+                    for target, i, _ in sorted(weights_idx, key=lambda x: x[2]):
                         info('Selecting host')
-                        path = paths[target]
+                        path = paths[target][i]
                         last_link = self._topology.get_link(path[-2], path[-1])
                         host_mac = last_link.dst_port.mac
                         host_ip = last_link.dst_port.ipv4
@@ -384,26 +387,28 @@ class Protocol(RyuApp):
 
     def _save_paths(self, _req_id, attempt_no, paths, weights, weight_type):
         src_ip, req_id = _req_id
-        for host, path in paths.items():
-            _path = [src_ip]
-            bandwidths = []
-            delays = []
-            jitters = []
-            loss_rates = []
-            len_path = len(path)
-            for i in range(1, len_path):
-                if i < len_path - 1:
-                    _path.append(f'{path[i]:x}')
-                link = self._topology.get_link(path[i-1], path[i])
-                if i == len_path - 1:
-                    _path.append(link.dst_port.ipv4)
-                bandwidths.append(link.get_bandwidth())
-                delays.append(link.get_delay())
-                jitters.append(link.get_jitter())
-                loss_rates.append(link.get_loss_rate())
-            Path(req_id, src_ip, attempt_no, _path, bandwidths, delays,
-                 jitters, loss_rates, weight_type, weights[host]).insert()
-            Path.as_csv()
+        for host, _paths in paths.items():
+            for idx, path in enumerate(_paths):
+                _path = [src_ip]
+                bandwidths = []
+                delays = []
+                jitters = []
+                loss_rates = []
+                len_path = len(path)
+                for i in range(1, len_path):
+                    if i < len_path - 1:
+                        _path.append(f'{path[i]:x}')
+                    link = self._topology.get_link(path[i-1], path[i])
+                    if i == len_path - 1:
+                        _path.append(link.dst_port.ipv4)
+                    bandwidths.append(link.get_bandwidth())
+                    delays.append(link.get_delay())
+                    jitters.append(link.get_jitter())
+                    loss_rates.append(link.get_loss_rate())
+                Path(req_id, src_ip, attempt_no, _path, bandwidths, delays,
+                     jitters, loss_rates, weight_type, 
+                     weights[host][idx]).insert()
+        Path.as_csv()
 
     @set_ev_cls(EventOFPPacketIn, MAIN_DISPATCHER)
     def _protocol_handler(self, ev):
