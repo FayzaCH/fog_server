@@ -102,7 +102,6 @@ class TopologyState(RyuApp):
             # None values are used to differentiate from 0
             # None means don't update
             if capacity != None:
-                print(capacity)
                 interface.set_capacity(capacity)
             if bandwidth_up != None:
                 interface.set_bandwidth_up(bandwidth_up)
