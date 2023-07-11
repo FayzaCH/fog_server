@@ -274,7 +274,11 @@ class RyuMainAPI(ControllerBase):
                         'node_id': id,
                         'name': str(interface['name']),
                     }))
+                    print(interface)
                     queue[-1][1]['timestamp'] = timestamp
+                    queue[-1][1]['capacity'] = float(
+                        interface['capacity']) if (
+                            'capacity' in interface) else None
                     queue[-1][1]['bandwidth_up'] = float(
                         interface['bandwidth_up']) if (
                             'bandwidth_up' in interface) else None
@@ -326,6 +330,7 @@ class RyuMainAPI(ControllerBase):
     def _update_interface_specs(self, **kwargs):
         return self.ryu_main.topology_state.update_interface_specs(
             kwargs['node_id'], kwargs['name'],
+            kwargs.get('capacity', None),
             kwargs.get('bandwidth_up', None),
             kwargs.get('bandwidth_down', None),
             kwargs.get('tx_packets', None),

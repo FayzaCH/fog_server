@@ -72,12 +72,14 @@ class Logging(RyuApp):
                         if not header:
                             print()
                             print('               src ---> dst               |'
-                                  ' bandwidth (Mbit/s)    delay (ms)    '
-                                  'jitter (ms)    loss rate (%) |   state')
+                                  ' capacity (Mbit/s)    bandwidth (Mbit/s)   '
+                                  ' delay (ms)    jitter (ms)    loss rate (%)'
+                                  ' |   state')
                             header = True
-                        print(' {:>17} ---> {:<17} | {:>18}    {:>10}    '
-                              '{:>11}    {:>13} |   {}'.format(
+                        print(' {:>17} ---> {:<17} | {:>17}    {:>18}    '
+                              '{:>10}    {:>11}    {:>13} |   {}'.format(
                                   src.label, dst.label,
+                                  round(link.get_capacity(), 2),
                                   round(link.get_bandwidth(), 2),
                                   round(link.get_delay() * 1000, 2),
                                   round(link.get_jitter() * 1000, 2),

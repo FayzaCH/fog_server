@@ -178,6 +178,8 @@ class InterfaceSpecs(Model):
 
         Attributes:
         -----------
+        capacity: Total interface capacity. Default is 0.
+
         bandwidth_up: Free egress bandwidth. Default is 0.
 
         bandwidth_down: Free ingress bandwidth. Default is 0.
@@ -189,9 +191,10 @@ class InterfaceSpecs(Model):
         timestamp: Default is time of update.
     '''
 
-    def __init__(self, bandwidth_up: float = 0, bandwidth_down: float = 0,
-                 tx_packets: int = 0, rx_packets: int = 0,
-                 timestamp: float = 0):
+    def __init__(self, capacity: float = 0, bandwidth_up: float = 0, 
+                 bandwidth_down: float = 0, tx_packets: int = 0, 
+                 rx_packets: int = 0, timestamp: float = 0):
+        self.capacity = capacity
         self.bandwidth_up = bandwidth_up
         self.bandwidth_down = bandwidth_down
         self.tx_packets = tx_packets
@@ -241,6 +244,13 @@ class Interface(Model):
     # the following methods serve for access to the interface specs no matter
     # how they are implemented (whether they are attributes in the object, are
     # objects themselves within an Iterable, etc.)
+
+    def get_capacity(self):
+        return self.specs.capacity
+
+    def set_capacity(self, capacity: float = 0):
+        self.specs.capacity = capacity
+        self.set_timestamp()
 
     def get_bandwidth_up(self):
         return self.specs.bandwidth_up
@@ -413,6 +423,8 @@ class LinkSpecs(Model):
 
         Attributes:
         -----------
+        capacity: Total link capacity. Default is 0.
+
         bandwidth: Free bandwidth. Default is 0.
 
         delay: Default is inf.
@@ -424,9 +436,10 @@ class LinkSpecs(Model):
         timestamp: Default is time of update.
     '''
 
-    def __init__(self, bandwidth: float = 0, delay: float = float('inf'),
-                 jitter: float = float('inf'), loss_rate: float = 1,
-                 timestamp: float = 0):
+    def __init__(self, capacity: float = 0, bandwidth: float = 0, 
+                 delay: float = float('inf'), jitter: float = float('inf'), 
+                 loss_rate: float = 1, timestamp: float = 0):
+        self.capacity = capacity
         self.bandwidth = bandwidth
         self.delay = delay
         self.jitter = jitter
@@ -477,6 +490,13 @@ class Link(Model):
     # the following methods serve for access to the node specs no matter how
     # they are implemented (whether they are attributes in the object, are
     # objects themselves within an Iterable, etc.)
+
+    def get_capacity(self):
+        return self.specs.capacity
+
+    def set_capacity(self, capacity: float = 0):
+        self.specs.capacity = capacity
+        self.set_timestamp()
 
     def get_bandwidth(self):
         return self.specs.bandwidth
