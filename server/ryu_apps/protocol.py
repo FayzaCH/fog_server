@@ -461,6 +461,7 @@ class Protocol(RyuApp):
                             self._sendp(Ether(src=DECOY_MAC, dst=eth_src)
                                         / IP(src=DECOY_IP, dst=ip_src)
                                         / my_proto, eth_src)
+                            return
                     # if regular rres
                     elif _requests[_req_id].state == RREQ:
                         _requests[_req_id].state = HRES
@@ -480,20 +481,22 @@ class Protocol(RyuApp):
                             host.get_cpu() - cos.get_min_cpu(),
                             host.get_ram() - cos.get_min_ram(),
                             host.get_disk() - cos.get_min_disk())
-                        info('Send resource reservation acknowledgement to %s' % ip_src)
-                        self._sendp(Ether(src=DECOY_MAC, dst=eth_src)
-                                    / IP(src=DECOY_IP, dst=ip_src)
-                                    / MyProtocol(req_id=req_id, state=RACK,
-                                                 src_mac=my_proto.src_mac,
-                                                 src_ip=my_proto.src_ip),
-                                    eth_src)
-                        info('Send host response to %s' % src_ip)
-                        dst_mac = my_proto.src_mac.decode()
-                        self._sendp(Ether(src=DECOY_MAC, dst=dst_mac)
-                                    / IP(src=DECOY_IP, dst=src_ip)
-                                    / MyProtocol(req_id=req_id, state=HRES,
-                                                 host_mac=eth_src,
-                                                 host_ip=ip_src), dst_mac)
+                    info('Send resource reservation acknowledgement to %s' % ip_src)
+                    self._sendp(Ether(src=DECOY_MAC, dst=eth_src)
+                                / IP(src=DECOY_IP, dst=ip_src)
+                                / MyProtocol(req_id=req_id, state=RACK,
+                                             attempt_no=my_proto.attempt_no, 
+                                             src_mac=my_proto.src_mac,
+                                             src_ip=my_proto.src_ip),
+                                eth_src)
+                    info('Send host response to %s' % src_ip)
+                    dst_mac = my_proto.src_mac.decode()
+                    self._sendp(Ether(src=DECOY_MAC, dst=dst_mac)
+                                / IP(src=DECOY_IP, dst=src_ip)
+                                / MyProtocol(req_id=req_id, state=HRES,
+                                             attempt_no=my_proto.attempt_no, 
+                                             host_mac=eth_src,
+                                             host_ip=ip_src), dst_mac)
                 return
 
             if state == RCAN:
