@@ -15,8 +15,17 @@ CONTROLLER:
 
 NETWORK:
   # spanning-tree protocol (default is False)
-    # if true, it doesn't enable STP but supposes that it is already enabled
+    # this parameter is only an indicator
+    # STP must be enabled/disabled manually
+
+  # scenario 1
   STP_ENABLED: True
+
+  # scenario 2
+  # STP_ENABLED: True
+
+  # scenario 3
+  # STP_ENABLED: False
   
   # ARP table refresh interval (in seconds, default is 60)
   ARP_REFRESH: 60
@@ -47,14 +56,30 @@ ORCHESTRATOR:
   
   # enable/disable path selection (default is False)
     # only works if STP is disabled (multi-path)
+  
+  # scenario 1
   PATHS: False
+
+  # scenario 2
+  # PATHS: False
+
+  # scenario 3
+  # PATHS: True
 
 PROTOCOL:
   # requests destination (default is NONE)
     # options are BROADCAST | ORCHESTRATOR | NONE
     # BROADCAST only works if STP is enabled (to avoid broadcast storms)
     # NONE means protocol is not used
+
+  # scenario 1
   SEND_TO: BROADCAST
+
+  # scenario 2
+  # SEND_TO: ORCHESTRATOR
+
+  # scenario 3
+  # SEND_TO: ORCHESTRATOR
   
   # time to wait for answer after sending a packet (in seconds, default is 1)
   TIMEOUT: 1
