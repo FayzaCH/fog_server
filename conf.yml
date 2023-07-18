@@ -14,6 +14,9 @@ CONTROLLER:
   PATH: /home/ouarab/ryu
 
 NETWORK:
+  # network broadcast ip address (default is 255.255.255.255)
+  BROADCAST: 10.255.255.255
+
   # spanning-tree protocol (default is False)
     # this parameter is only an indicator
     # STP must be enabled/disabled manually
@@ -29,7 +32,7 @@ NETWORK:
   
   # ARP table refresh interval (in seconds, default is 60)
   ARP_REFRESH: 60
-  
+
   # hosts IP pool(s) (default is empty)
     # pool format <range1>,<range2>, ... ,<value1>,<value2>, ...
     # range format <start_IP>:<end_IP>
