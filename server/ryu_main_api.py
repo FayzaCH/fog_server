@@ -81,13 +81,11 @@ from consts import ROOT_PATH
 import config
 
 
-_broadcast_ip = getenv('NETWORK_BROADCAST', None)
-if not _broadcast_ip:
-    print(' *** WARNING in ryu_main_api: '
-          'NETWORK:BROADCAST parameter missing from conf.yml. '
-          'Defaulting to 255.255.255.255.')
-    _broadcast_ip = '255.255.255.255'
-BROADCAST_IP = _broadcast_ip
+NETWORK_ADDRESS = getenv('NETWORK_ADDRESS', None)
+if not NETWORK_ADDRESS:
+    print(' *** ERROR in ryu_main_api: '
+          'NETWORK:ADDRESS parameter missing from conf.yml.')
+    exit()
 
 SIM_ON = getenv('SIMULATOR_ACTIVE', False) == 'True'
 
@@ -143,7 +141,7 @@ class RyuMainAPI(ControllerBase):
             'CONTROLLER_DECOY_IP': DECOY_IP,
             'ORCHESTRATOR_UDP_PORT': UDP_PORT,
             'ORCHESTRATOR_UDP_TIMEOUT': UDP_TIMEOUT,
-            'NETWORK_BROADCAST': BROADCAST_IP,
+            'NETWORK_ADDRESS': NETWORK_ADDRESS,
             'NETWORK_STP_ENABLED': STP_ENABLED,
             'PROTOCOL_SEND_TO': PROTO_SEND_TO,
             'PROTOCOL_TIMEOUT': PROTO_TIMEOUT,

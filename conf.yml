@@ -14,8 +14,8 @@ CONTROLLER:
   PATH: /home/ouarab/ryu
 
 NETWORK:
-  # network broadcast ip address (default is 255.255.255.255)
-  BROADCAST: 10.255.255.255
+  # network address (no default, required)
+  ADDRESS: 10.0.0.0/8
 
   # spanning-tree protocol (default is False)
     # this parameter is only an indicator
