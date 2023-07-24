@@ -1,4 +1,3 @@
-from time import time
 from urllib3 import disable_warnings
 from urllib3.exceptions import InsecureRequestWarning
 
@@ -10,6 +9,7 @@ from keystoneauth1.identity.v3 import Password
 from gnocchiclient.client import Client
 from gnocchiclient.exceptions import Conflict, NotFound
 
+from model import NodeType
 from common import *
 
 
@@ -59,44 +59,95 @@ OS_ARCHIVE_POLICY = getenv('OPENSTACK_ARCHIVE_POLICY', '')
 
 
 RESOURCE_TYPES = {
-    'sdn_port': {
+    'fog_node': {
         'def': {
-            'name': 'sdn_port',
+            'name': 'fog_node',
             'attributes': {
+                'node_id': {
+                    'max_length': 255,
+                    'min_length': 0,
+                    'required': True,
+                    'type': 'string'
+                },
+                'node_type': {
+                    'max_length': 255,
+                    'min_length': 0,
+                    'required': True,
+                    'type': 'string'
+                },
+                'label': {
+                    'max_length': 255,
+                    'min_length': 0,
+                    'required': False,
+                    'type': 'string'
+                }
+            }
+        },
+        'metrics': ['cpu.count', 'memory.free', 'disk.free'],
+        'units': ['', 'MB', 'GB']
+    },
+    'fog_port': {
+        'def': {
+            'name': 'fog_port',
+            'attributes': {
+                'node_id': {
+                    'max_length': 255,
+                    'min_length': 0,
+                    'required': True,
+                    'type': 'string'
+                },
                 'name': {
                     'max_length': 255,
                     'min_length': 0,
                     'required': True,
                     'type': 'string'
                 },
-                'number': {
+                'num': {
                     'max': 4294967295,
-                    'min': 0,
+                    'min': -1,
                     'required': False,
                     'type': 'number'
                 },
-                'node': {
-                    'max_length': 255,
+                'mac': {
+                    'max_length': MAC_LEN,
                     'min_length': 0,
-                    'required': True,
+                    'required': False,
+                    'type': 'string'
+                },
+                'ipv4': {
+                    'max_length': IP_LEN,
+                    'min_length': 0,
+                    'required': False,
                     'type': 'string'
                 }
             }
         },
-        'metrics': ['bandwidth.up', 'bandwidth.down'],
-        'units': ['Mbit/s', 'Mbit/s']
+        'metrics': ['capacity', 'bandwidth.up.free', 'bandwidth.down.free'],
+        'units': ['Mbit/s', 'Mbit/s', 'Mbit/s']
     },
-    'sdn_link': {
+    'fog_link': {
         'def': {
-            'name': 'sdn_link',
+            'name': 'fog_link',
             'attributes': {
-                'src': {
+                'src_node': {
                     'max_length': 255,
                     'min_length': 0,
                     'required': True,
                     'type': 'string'
                 },
-                'dst': {
+                'src_port': {
+                    'max_length': 255,
+                    'min_length': 0,
+                    'required': True,
+                    'type': 'string'
+                },
+                'dst_node': {
+                    'max_length': 255,
+                    'min_length': 0,
+                    'required': True,
+                    'type': 'string'
+                },
+                'dst_port': {
                     'max_length': 255,
                     'min_length': 0,
                     'required': True,
@@ -104,40 +155,28 @@ RESOURCE_TYPES = {
                 }
             }
         },
-        'metrics': ['bandwidth', 'delay', 'jitter', 'loss_rate'],
-        'units': ['Mbit/s', 's', 's', '']
+        'metrics': ['capacity', 'bandwidth.free', 'delay', 'jitter', 'loss.rate'],
+        'units': ['Mbit/s', 'Mbit/s', 's', 's', '']
     }
 }
 
 
 class Metrics(RyuApp):
     '''
-        Ryu app for sending monitoring measures collected from various other 
-        apps (like network_monitor, network_delay_detector and delay_monitor) 
-        periodically to OpenStack's Ceilometer (Gnocchi time series database).
+        Ryu app for sending monitoring measures collected from various sources 
+        (other Ryu apps, fog clients, etc.) periodically to OpenStack's 
+        Ceilometer (Gnocchi time series database).
 
         Requirements:
         -------------
-        Switches app (built-in): for datapath and port lists.
-
-        SimpleARP app: for host in-ports mapping.
-
-        NetworkMonitor app: for port stats.
-
-        NetworkDelayDetector app: for switch-switch link delays.
-
-        DelayMonitor: for host-switch link delays.
+        Topology app: for Nodes, Interfaces, and Links and their specs.
     '''
 
     def __init__(self, *args, **kwargs):
         super(Metrics, self).__init__(*args, **kwargs)
         self.name = METRICS
 
-        self._switches = get_app(SWITCHES)
-        self._simple_arp = get_app(SIMPLE_ARP)
-        self._network_monitor = get_app(NETWORK_MONITOR)
-        self._network_delay_detector = get_app(NETWORK_DELAY_DETECTOR)
-        self._delay_monitor = get_app(DELAY_MONITOR)
+        self._topology = get_app(TOPOLOGY)
 
         self._session = None
         self._client = None
@@ -155,87 +194,98 @@ class Metrics(RyuApp):
     def _add_measures(self):
         while True:
             sleep(MONITOR_PERIOD)
+            measures = {}
             try:
-                measures = {}
-                t = time()
-                for dpid, ports in self._network_monitor.free_bandwidth.items():
-                    for port_no, (bw_up, bw_down) in ports.items():
-                        try:
-                            node = str(dpid).zfill(16)
-                            port_name = self._switches.dps[dpid].ports[
-                                port_no].name.decode()
-                            id = node + ':' + port_name
-                            self._ensure_resource('sdn_port', {
-                                'id': id,
-                                'name': port_name,
-                                'number': port_no,
-                                'node': node
-                            })
+                for node_id, node in self._topology.get_nodes().items():
+                    if node.type == NodeType.SWITCH:
+                        node_id = str(f'{node_id:x}')
+                    self._ensure_resource('fog_node', {
+                        'id': node_id,
+                        'node_id': node_id,
+                        'node_type': str(node.type.value),
+                        'label': node.label
+                    })
+                    t = node.get_timestamp()
+                    measures.update({
+                        node_id: {
+                            'cpu.count': [{
+                                'timestamp': t,
+                                'value': node.get_cpu()
+                            }],
+                            'memory.free': [{
+                                'timestamp': t,
+                                'value': node.get_ram()
+                            }],
+                            'disk.free': [{
+                                'timestamp': t,
+                                'value': node.get_disk()
+                            }]
+                        }
+                    })
 
-                            measures.update({
-                                id: {
-                                    'bandwidth.up': [{
-                                        'timestamp': t,
-                                        'value': bw_up
-                                    }],
-                                    'bandwidth.down': [{
-                                        'timestamp': t,
-                                        'value': bw_down
-                                    }]
-                                }
-                            })
-
-                        except Exception as e:
-                            print(' *** ERROR in metrics._add_measures:',
-                                  e.__class__.__name__, e)
-
-                for src_dpid, dsts in self._network_delay_detector.delay.items():
-                    for dst_dpid, delay in dsts.items():
-                        try:
-                            src = str(src_dpid).zfill(16)
-                            dst = str(dst_dpid).zfill(16)
-                            id = src + '->' + dst
-                            self._ensure_resource('sdn_link', {
-                                'id': id,
-                                'src': src,
-                                'dst': dst
-                            })
-
-                            measures.update({
-                                id: {
-                                    'delay': [{
-                                        'timestamp': t,
-                                        'value': delay
-                                    }],
-                                    'jitter': [{
-                                        'timestamp': t,
-                                        'value': self._network_delay_detector.jitter[src_dpid][dst_dpid]
-                                    }],
-                                    'loss_rate': [{
-                                        'timestamp': t,
-                                        'value': self._network_monitor.loss_rate[src_dpid][dst_dpid]
-                                    }]
-                                }
-                            })
-
-                        except Exception as e:
-                            print(' *** ERROR in metrics._add_measures:',
-                                  e.__class__.__name__, e)
-
-                for src, delay in self._delay_monitor.delay.items():
-                    try:
-                        delay = delay / 2
-                        jitter = self._delay_monitor.jitter[src] / 2
-                        dst = str(self._simple_arp._in_ports[src][0]).zfill(16)
-                        id = src + '->' + dst
-                        self._ensure_resource('sdn_link', {
-                            'id': id,
-                            'src': src,
-                            'dst': dst
+                    for iname, iface in node.interfaces.items():
+                        port_id = node_id + '-' + iname
+                        self._ensure_resource('fog_port', {
+                            'id': port_id,
+                            'node_id': node_id,
+                            'name': iname,
+                            'num': iface.num if iface.num != None else -1,
+                            'mac': str(iface.mac),
+                            'ipv4': str(iface.ipv4)
+                        })
+                        t = iface.get_timestamp()
+                        measures.update({
+                            port_id: {
+                                'capacity': [{
+                                    'timestamp': t,
+                                    'value': iface.get_capacity()
+                                }],
+                                'bandwidth.up.free': [{
+                                    'timestamp': t,
+                                    'value': iface.get_bandwidth_up()
+                                }],
+                                'bandwidth.down.free': [{
+                                    'timestamp': t,
+                                    'value': iface.get_bandwidth_down()
+                                }]
+                            }
                         })
 
+                for src_id, dsts in self._topology.get_links().items():
+                    src = self._topology.get_node(src_id)
+                    if src and src.type == NodeType.SWITCH:
+                        src_id = str(f'{src_id:x}')
+                    for dst_id, link in dsts.items():
+                        dst = self._topology.get_node(dst_id)
+                        if dst and dst.type == NodeType.SWITCH:
+                            dst_id = str(f'{dst_id:x}')
+                        link_id = src_id + '>' + dst_id
+                        self._ensure_resource('fog_link', {
+                            'id': link_id,
+                            'src_node': src_id,
+                            'dst_node': dst_id,
+                            'src_port': link.src_port.name,
+                            'dst_port': link.dst_port.name
+                        })
+                        
+                        t = link.get_timestamp()
+                        # gnocchi can't read inf values so we change to -1
+                        delay = link.get_delay()
+                        if delay == float('inf'):
+                            delay = -1
+                        jitter = link.get_jitter()
+                        if jitter == float('inf'):
+                            jitter = -1
                         measures.update({
-                            id: {
+                            link_id: {
+                                'capacity': [{
+                                    'timestamp': t,
+                                    'value': link.get_capacity()
+                                }],
+                                'bandwidth.free': [{
+                                    'timestamp': t,
+                                    'value': link.get_bandwidth()
+                                }],
                                 'delay': [{
                                     'timestamp': t,
                                     'value': delay
@@ -243,33 +293,13 @@ class Metrics(RyuApp):
                                 'jitter': [{
                                     'timestamp': t,
                                     'value': jitter
-                                }]
-                            }
-                        })
-
-                        id = dst + '->' + src
-                        self._ensure_resource('sdn_link', {
-                            'id': id,
-                            'src': dst,
-                            'dst': src
-                        })
-
-                        measures.update({
-                            id: {
-                                'delay': [{
-                                    'timestamp': t,
-                                    'value': delay
                                 }],
-                                'jitter': [{
+                                'loss.rate': [{
                                     'timestamp': t,
-                                    'value': jitter
+                                    'value': link.get_loss_rate()
                                 }]
                             }
                         })
-
-                    except Exception as e:
-                        print(' *** ERROR in metrics._add_measures:',
-                              e.__class__.__name__, e)
 
             except Exception as e:
                 print(' *** ERROR in metrics._add_measures:',
