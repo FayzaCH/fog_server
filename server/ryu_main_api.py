@@ -243,10 +243,13 @@ class RyuMainAPI(ControllerBase):
 
     @route('ryu_main', '/node_specs/{id}', methods=['PUT'])
     def update_node_specs(self, req, id):
-        #  check if resource exists
+        # check if resource exists
+        # could be a host
         if not self.ryu_main.topology.get_node(id):
             try:
-                id = int(id)
+                # or a switch 
+                # (id is dpid but converted from hexadecimal to decimal)
+                id = int(id, 16)
             except (TypeError, ValueError):
                 return Response(status=HTTP_NOT_FOUND)
             if not self.ryu_main.topology.get_node(id):
