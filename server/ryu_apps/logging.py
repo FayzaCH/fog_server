@@ -41,27 +41,33 @@ class Logging(RyuApp):
 
     def show_node_stats(self):
         '''
-            Print node specs (CPU, RAM, disk) on console.
+            Print nodes (ID, label) and their specs (CPU, RAM, disk) 
+            on console.
         '''
 
         header = False
         for node in list(self._topology.get_nodes().values()):
             if not header:
                 print()
-                print(' node              | cpu    ram (MB)    disk (GB)')
+                print('           node id |          label |'
+                      '   cpu   ram (MB)   disk (GB)')
                 header = True
-            print(' {:<17} | {:>3}    {:>8}    {:>9}'.format(
-                node.label, node.get_cpu(), round(node.get_ram(), 2),
-                round(node.get_disk(), 2)))
+            print(' {:>17} | {:>14} |   {:>3}   {:>8}   {:>9}'.format(
+                  node.id, node.label, node.get_cpu(), 
+                  round(node.get_ram(), 2), round(node.get_disk(), 2)))
         if header:
             print()
 
     def show_link_stats(self):
         '''
-            Print link specs (bandwidth, delay, jitter, loss rate, state) 
-            on console.
+            Print links (src, dst) and their specs (capacity, bandwidth, 
+            delay, jitter, loss rate, state) on console.
         '''
 
+        _states = {
+            True: 'UP',
+            False: 'DOWN'
+        }
         header = False
         for src_id, src_links in list(self._topology.get_links().items()):
             src = self._topology.get_node(src_id)
@@ -71,19 +77,19 @@ class Logging(RyuApp):
                     if dst:
                         if not header:
                             print()
-                            print('               src ---> dst               |'
-                                  ' capacity (Mbit/s)    bandwidth (Mbit/s)   '
-                                  ' delay (ms)    jitter (ms)    loss rate (%)'
-                                  ' |   state')
+                            print('            src -> dst            |'
+                                  '   capacity (Mbps)   bandwidth (Mbps)'
+                                  '   delay (ms)   jitter (ms)   loss (%)'
+                                  '   |   state')
                             header = True
-                        print(' {:>17} ---> {:<17} | {:>17}    {:>18}    '
-                              '{:>10}    {:>11}    {:>13} |   {}'.format(
+                        print(' {:>14} -> {:<14} |   {:>15}   {:>16}'
+                              '   {:>10}   {:>11}   {:>8}   |   {}'.format(
                                   src.label, dst.label,
                                   round(link.get_capacity(), 2),
                                   round(link.get_bandwidth(), 2),
                                   round(link.get_delay() * 1000, 2),
                                   round(link.get_jitter() * 1000, 2),
                                   round(link.get_loss_rate() * 100, 2),
-                                  link.state))
+                                  _states.get(link.state, 'N/A')))
         if header:
             print()
