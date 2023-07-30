@@ -11,9 +11,16 @@ from gnocchiclient.exceptions import Conflict, NotFound
 
 from model import NodeType
 from common import *
+import config
 
 
-OS_VERIFY_CERT = getenv('OPENSTACK_VERIFY_CERT', False) == 'True'
+_os_verify = getenv('OPENSTACK_VERIFY_CERT', '').upper()
+if _os_verify not in ('TRUE', 'FALSE'):
+    print(' *** WARNING in metrics: '
+          'OPENSTACK:VERIFY_CERT parameter invalid or missing from conf.yml. '
+          'Defaulting to False.')
+    _os_verify = 'FALSE'
+OS_VERIFY_CERT = _os_verify == 'TRUE'
 
 OS_URL = getenv('OPENSTACK_URL', '')
 if not OS_URL:
@@ -267,7 +274,7 @@ class Metrics(RyuApp):
                             'src_port': link.src_port.name,
                             'dst_port': link.dst_port.name
                         })
-                        
+
                         t = link.get_timestamp()
                         # gnocchi can't read inf values so we change to -1
                         delay = link.get_delay()

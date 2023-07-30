@@ -15,12 +15,11 @@ DCAN = 10    # data exchange cancellation
 DWAIT = 11  # data exchange wait
 FAIL = 0
 
+
 # misc. consts
 REQ_ID_LEN = 10
 MAC_LEN = 17
 IP_LEN = 15
-BROADCAST_MAC = 'ff:ff:ff:ff:ff:ff'
-BROADCAST_IP = '255.255.255.255'
 DEFAULT_IP = '0.0.0.0'
 SEND_TO_BROADCAST = 'BROADCAST'
 SEND_TO_ORCHESTRATOR = 'ORCHESTRATOR'

@@ -34,6 +34,7 @@ from model import CoS, Request, Response, Path
 from selection import (NodeSelector, SIMPLE_NODE, PathSelector, LEASTCOST_PATH,
                        COST_WEIGHT)
 from common import *
+import config
 
 
 # protocol config
@@ -53,7 +54,11 @@ except:
           'Defaulting to 3 retries.')
     PROTO_RETRIES = 3
 
-PROTO_VERBOSE = getenv('PROTOCOL_VERBOSE', False) == 'True'
+_proto_verbose = getenv('PROTOCOL_VERBOSE', '').upper()
+if _proto_verbose not in ('TRUE', 'FALSE'):
+    _proto_verbose = 'FALSE'
+PROTO_VERBOSE = _proto_verbose == 'TRUE'
+
 if PROTO_VERBOSE:
     basicConfig(level=INFO, format='%(message)s')
 
@@ -406,7 +411,7 @@ class Protocol(RyuApp):
                     jitters.append(link.get_jitter())
                     loss_rates.append(link.get_loss_rate())
                 Path(req_id, src_ip, attempt_no, _path, bandwidths, delays,
-                     jitters, loss_rates, weight_type, 
+                     jitters, loss_rates, weight_type,
                      weights[host][idx]).insert()
         Path.as_csv()
 
@@ -485,7 +490,7 @@ class Protocol(RyuApp):
                     self._sendp(Ether(src=DECOY_MAC, dst=eth_src)
                                 / IP(src=DECOY_IP, dst=ip_src)
                                 / MyProtocol(req_id=req_id, state=RACK,
-                                             attempt_no=my_proto.attempt_no, 
+                                             attempt_no=my_proto.attempt_no,
                                              src_mac=my_proto.src_mac,
                                              src_ip=my_proto.src_ip),
                                 eth_src)
@@ -494,7 +499,7 @@ class Protocol(RyuApp):
                     self._sendp(Ether(src=DECOY_MAC, dst=dst_mac)
                                 / IP(src=DECOY_IP, dst=src_ip)
                                 / MyProtocol(req_id=req_id, state=HRES,
-                                             attempt_no=my_proto.attempt_no, 
+                                             attempt_no=my_proto.attempt_no,
                                              host_mac=eth_src,
                                              host_ip=ip_src), dst_mac)
                 return

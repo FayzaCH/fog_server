@@ -47,9 +47,21 @@ if DECOY_IP == None:
           'CONTROLLER:DECOY_IP parameter missing from conf.yml.')
     exit()
 
-STP_ENABLED = getenv('NETWORK_STP_ENABLED', False) == 'True'
+_stp_enabled = getenv('NETWORK_STP_ENABLED', '').upper()
+if _stp_enabled not in ('TRUE', 'FALSE'):
+    print(' *** WARNING in common: '
+          'NETWORK:STP_ENABLED parameter invalid or missing from conf.yml. '
+          'Defaulting to False.')
+    _stp_enabled = 'FALSE'
+STP_ENABLED = _stp_enabled == 'TRUE'
 
-ORCHESTRATOR_PATHS = getenv('ORCHESTRATOR_PATHS', False) == 'True'
+_orch_paths = getenv('ORCHESTRATOR_PATHS', '').upper()
+if _orch_paths not in ('TRUE', 'FALSE'):
+    print(' *** WARNING in common: '
+          'ORCHESTRATOR:PATHS parameter invalid or missing from conf.yml. '
+          'Defaulting to False.')
+    _orch_paths = 'FALSE'
+ORCHESTRATOR_PATHS = _orch_paths == 'TRUE'
 
 _proto_send_to = getenv('PROTOCOL_SEND_TO', None)
 if (_proto_send_to == None

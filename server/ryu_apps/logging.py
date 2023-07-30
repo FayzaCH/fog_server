@@ -2,9 +2,13 @@ from ryu.base.app_manager import RyuApp
 from ryu.lib.hub import spawn, sleep
 
 from common import *
+import config
 
 
-MONITOR_VERBOSE = getenv('MONITOR_VERBOSE', False) == 'True'
+_monitor_verbose = getenv('MONITOR_VERBOSE', '').upper()
+if _monitor_verbose not in ('TRUE', 'FALSE'):
+    _monitor_verbose = 'FALSE'
+MONITOR_VERBOSE = _monitor_verbose == 'TRUE'
 
 
 class Logging(RyuApp):
@@ -53,7 +57,7 @@ class Logging(RyuApp):
                       '   cpu   ram (MB)   disk (GB)')
                 header = True
             print(' {:>17} | {:>14} |   {:>3}   {:>8}   {:>9}'.format(
-                  node.id, node.label, node.get_cpu(), 
+                  node.id, node.label, node.get_cpu(),
                   round(node.get_ram(), 2), round(node.get_disk(), 2)))
         if header:
             print()

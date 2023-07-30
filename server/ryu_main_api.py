@@ -87,7 +87,13 @@ if not NETWORK_ADDRESS:
           'NETWORK:ADDRESS parameter missing from conf.yml.')
     exit()
 
-SIM_ON = getenv('SIMULATOR_ACTIVE', False) == 'True'
+_sim_on = getenv('SIMULATOR_ACTIVE', '').upper()
+if _sim_on not in ('TRUE', 'FALSE'):
+    print(' *** WARNING in ryu_main_api: '
+          'SIMULATOR:ACTIVE parameter invalid or missing from conf.yml. '
+          'Defaulting to False.')
+    _sim_on = 'FALSE'
+SIM_ON = _sim_on == 'TRUE'
 
 # simulated exec time interval
 try:
@@ -244,10 +250,10 @@ class RyuMainAPI(ControllerBase):
     @route('ryu_main', '/node_specs/{id}', methods=['PUT'])
     def update_node_specs(self, req, id):
         # check if resource exists
-        # could be a host
+        #  could be a host
         if not self.ryu_main.topology.get_node(id):
             try:
-                # or a switch 
+                # or a switch
                 # (id is dpid but converted from hexadecimal to decimal)
                 id = int(id, 16)
             except (TypeError, ValueError):

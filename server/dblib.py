@@ -20,7 +20,6 @@
 '''
 
 
-from os import getenv
 from queue import Queue
 from threading import Thread, Event
 from sqlite3 import connect
@@ -322,16 +321,16 @@ def _adapt(obj: Model):
                 obj.state, obj.hreq_at, obj.dres_at)
 
     if obj.__class__.__name__ is Attempt.__name__:
-        return (obj.req_id, obj.src, obj.attempt_no, obj.host, obj.state, 
+        return (obj.req_id, obj.src, obj.attempt_no, obj.host, obj.state,
                 obj.hreq_at, obj.hres_at, obj.rres_at, obj.dres_at)
 
     if obj.__class__.__name__ is Response.__name__:
-        return (obj.req_id, obj.src, obj.attempt_no, obj.host, obj.cpu, 
+        return (obj.req_id, obj.src, obj.attempt_no, obj.host, obj.cpu,
                 obj.ram, obj.disk)
-    
+
     if obj.__class__.__name__ is Path.__name__:
-        return (obj.req_id, obj.src, obj.attempt_no, str(obj.path), 
-                str(obj.bandwidths), str(obj.delays), str(obj.jitters), 
+        return (obj.req_id, obj.src, obj.attempt_no, str(obj.path),
+                str(obj.bandwidths), str(obj.delays), str(obj.jitters),
                 str(obj.loss_rates), obj.weight_type, obj.weight)
 
 
@@ -377,10 +376,10 @@ def _convert(itr: list, cls):
         if cls.__name__ is Response.__name__:
             obj = Response(item[0], item[1], item[2], item[3], item[4],
                            item[5], item[6])
-        
+
         if cls.__name__ is Path.__name__:
             obj = Path(item[0], item[1], item[2], eval(item[3]), eval(item[4]),
-                       eval(item[5]), eval(item[6]), eval(item[7]), item[8], 
+                       eval(item[5]), eval(item[6]), eval(item[7]), item[8],
                        item[9])
 
         ret.append(obj)
@@ -400,14 +399,14 @@ def _get_columns(cls):
                 'hreq_at', 'dres_at')
 
     if cls.__name__ is Attempt.__name__:
-        return ('req_id', 'src', 'attempt_no', 'host', 'state', 'hreq_at', 
+        return ('req_id', 'src', 'attempt_no', 'host', 'state', 'hreq_at',
                 'hres_at', 'rres_at', 'dres_at')
 
     if cls.__name__ is Response.__name__:
         return ('req_id', 'src', 'attempt_no', 'host', 'cpu', 'ram', 'disk')
-    
+
     if cls.__name__ is Path.__name__:
-        return ('req_id', 'src', 'attempt_no', 'path', 'bandwidths', 'delays', 
+        return ('req_id', 'src', 'attempt_no', 'path', 'bandwidths', 'delays',
                 'jitters', 'loss_rates', 'weight_type', 'weight')
 
     return ()

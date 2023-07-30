@@ -29,6 +29,7 @@ from ryu.topology.event import (EventSwitchEnter, EventSwitchLeave,
                                 EventHostAdd)
 
 from common import *
+import config
 
 
 try:

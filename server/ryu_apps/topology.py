@@ -3,10 +3,7 @@ from ryu.controller.handler import set_ev_cls
 from ryu.lib.hub import spawn, sleep
 from ryu.topology.event import *
 
-from networkx import DiGraph
-from networkx.exception import NetworkXError
-
-from model import Node, NodeType, Interface, Link, Topology as Topo
+from model import Node, NodeType, Topology as Topo
 from udp_server import serve, clients
 from common import *
 import config

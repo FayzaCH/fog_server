@@ -10,6 +10,7 @@ from ryu.app.wsgi import WSGIApplication
 from ryu_apps import *
 from ryu_main_api import RyuMainAPI
 import dblib
+import config
 
 
 require_app('ryu.app.rest_topology')
