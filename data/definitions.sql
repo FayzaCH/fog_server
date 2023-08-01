@@ -29,6 +29,7 @@ create table if not exists requests (
     data blob,
     result blob,
     host text,
+    path text,
     state integer,
     hreq_at real,
     dres_at real,
@@ -49,6 +50,7 @@ create table if not exists attempts (
     src text not null,
   	attempt_no integer not null,
     host text,
+    path text,
     state integer,
     hreq_at real,
     hres_at real,
@@ -74,6 +76,7 @@ create table if not exists responses (
     cpu real,
     ram real,
     disk real,
+    algorithm text,
 
     primary key (req_id, src, attempt_no, host),
 
@@ -99,6 +102,7 @@ create table if not exists paths (
     delays text,
     jitters text,
     loss_rates text,
+    algorithm text,
     weight_type text,
     weight real,
 

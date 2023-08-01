@@ -69,6 +69,19 @@ ORCHESTRATOR:
   # scenario 3
   # PATHS: True
 
+  # node selection algorithm
+    # options are SIMPLE (default is SIMPLE)
+  NODE_ALGORITHM: SIMPLE
+
+  # path selection algorithm
+    # options are DIJKSTRA | LEASTCOST (default is DIJKSTRA)
+  PATH_ALGORITHM: LEASTCOST
+
+  # path weights considered
+    # options for DIJKSTRA are HOP | DELAY (default is HOP)
+    # options for LEASTCOST are COST (default is COST)
+  PATH_WEIGHT: COST
+
 PROTOCOL:
   # requests destination (default is NONE)
     # options are BROADCAST | ORCHESTRATOR | NONE

@@ -1042,6 +1042,8 @@ class Request(Model):
 
         host: Network application host IP address.
 
+        path: Path to network application host.
+
         state: Request state, enumeration of HREQ (1) (waiting for host), RREQ 
         (3) (waiting for resources), DREQ (6) (waiting for data), DRES (7) 
         (finished), and FAIL (0) (failed).
@@ -1066,14 +1068,16 @@ class Request(Model):
     }
 
     def __init__(self, id, src, cos: CoS, data: bytes, result: bytes = None,
-                 host: str = None, state: int = None, hreq_at: float = None,
-                 dres_at: float = None, attempts: dict = None):
+                 host: str = None, path: list = None, state: int = None,
+                 hreq_at: float = None, dres_at: float = None,
+                 attempts: dict = None):
         self.id = id
         self.src = src
         self.cos = cos
         self.data = data
         self.result = result
         self.host = host
+        self.path = path
         self.state = state
         self.hreq_at = hreq_at
         self.dres_at = dres_at
@@ -1082,6 +1086,7 @@ class Request(Model):
         self.attempts = attempts
         self._attempt_no = 0
         self._late = False
+        self._host_mac_ip = None
 
     def _t(self, x):
         return datetime.fromtimestamp(x) if x != None else x
@@ -1180,6 +1185,8 @@ class Attempt(Model):
 
         host: Network application host IP address.
 
+        path: Path to network application host.
+
         state: Attempt state, enumeration of HREQ (1) (waiting for host), RREQ 
         (3) (waiting for resources), DREQ (6) (waiting for data), DRES (7) 
         (finished).
@@ -1194,13 +1201,14 @@ class Attempt(Model):
     '''
 
     def __init__(self, req_id, src: str, attempt_no: int, host: str = None,
-                 state: int = None, hreq_at: float = None,
+                 path: list = None, state: int = None, hreq_at: float = None,
                  hres_at: float = None, rres_at: float = None,
                  dres_at: float = None):
         self.req_id = req_id
         self.src = src
         self.attempt_no = attempt_no
         self.host = host
+        self.path = path
         self.state = state
         self.hreq_at = hreq_at
         self.hres_at = hres_at
@@ -1227,10 +1235,12 @@ class Response(Model):
         ram: RAM size offered by host.
 
         disk: Disk size offered by host.
+
+        algorithm: Node selection algorithm used (SIMPLE, etc.).
     '''
 
     def __init__(self, req_id, src: str, attempt_no: int, host: str,
-                 cpu: float = None, ram: float = None, disk: float = None):
+                 cpu: float, ram: float, disk: float, algorithm: str):
         self.req_id = req_id
         self.src = src
         self.attempt_no = attempt_no
@@ -1238,6 +1248,7 @@ class Response(Model):
         self.cpu = cpu
         self.ram = ram
         self.disk = disk
+        self.algorithm = algorithm
 
 
 class Path(Model):
@@ -1263,14 +1274,17 @@ class Path(Model):
         loss_rates: List of path links loss rates (gross values; to get 
         percentages, multiply by 100).
 
-        weight_type: Path weight type (hop, delay, etc.).
+        algorithm: Path selection algorithm used (DIJKSTRA, LEASTCOST, etc.)
 
-        weight: Path weight.
+        weight_type: Path weight type (HOP, DELAY, COST, etc.).
+
+        weight: Path weight value.
     '''
 
     def __init__(self, req_id, src: str, attempt_no: int, path: list,
                  bandwidths: list, delays: list, jitters: list,
-                 loss_rates: list, weight_type: str, weight: float):
+                 loss_rates: list, algorithm: str, weight_type: str,
+                 weight: float):
         self.req_id = req_id
         self.src = src
         self.attempt_no = attempt_no
@@ -1279,5 +1293,6 @@ class Path(Model):
         self.delays = delays
         self.jitters = jitters
         self.loss_rates = loss_rates
+        self.algorithm = algorithm
         self.weight_type = weight_type
         self.weight = weight

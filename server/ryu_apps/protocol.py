@@ -31,11 +31,40 @@ from scapy.all import (Packet, ByteEnumField, StrLenField, IntEnumField,
                        Ether, IP)
 
 from model import CoS, Request, Response, Path
-from selection import (NodeSelector, SIMPLE_NODE, PathSelector, LEASTCOST_PATH,
-                       COST_WEIGHT)
+from selection import (NodeSelector, PathSelector, NODE_ALGORITHMS,
+                       PATH_ALGORITHMS, PATH_WEIGHTS)
 from common import *
 import config
 
+
+# algorithms
+_node_algo = getenv('ORCHESTRATOR_NODE_ALGORITHM', None)
+if _node_algo not in NODE_ALGORITHMS:
+    _node_algo = list(NODE_ALGORITHMS.keys())[0]
+    print(' *** WARNING in protocol: '
+          'ORCHESTRATOR:NODE_ALGORITHM parameter invalid or missing from '
+          'conf.yml. '
+          'Defaulting to ' + _node_algo + '.')
+NODE_ALGO = _node_algo
+
+if not STP_ENABLED and ORCHESTRATOR_PATHS:
+    _path_algo = getenv('ORCHESTRATOR_PATH_ALGORITHM', None)
+    if _path_algo not in PATH_ALGORITHMS:
+        _path_algo = list(PATH_ALGORITHMS.keys())[0]
+        print(' *** WARNING in protocol: '
+              'ORCHESTRATOR:PATH_ALGORITHM parameter invalid or missing from '
+              'conf.yml. '
+              'Defaulting to ' + _path_algo + '.')
+    PATH_ALGO = _path_algo
+
+    _path_weight = getenv('ORCHESTRATOR_PATH_WEIGHT', None)
+    if _path_weight not in PATH_WEIGHTS[PATH_ALGO]:
+        _path_weight = PATH_WEIGHTS[PATH_ALGO][0]
+        print(' *** WARNING in protocol: '
+              'ORCHESTRATOR:PATH_WEIGHT parameter invalid or missing from '
+              'conf.yml. '
+              'Defaulting to ' + _path_weight + '.')
+    PATH_WEIGHT = _path_weight
 
 # protocol config
 try:
@@ -300,7 +329,10 @@ class Protocol(RyuApp):
 
     def _select_host(self, my_proto, _req_id, eth_src, ip_src):
         req = _requests[_req_id]
-        hosts = NodeSelector(SIMPLE_NODE).select(
+        # to keep track of all possible hosts
+        # the default strategy ALL is applied
+        # the hosts are then tried first (in list) to last
+        hosts = NodeSelector(NODE_ALGO).select(
             self._topology.get_nodes().values(), req)
         host_ip = ''
         if hosts:
@@ -309,11 +341,14 @@ class Protocol(RyuApp):
             my_proto.src_mac = eth_src
             my_proto.src_ip = ip_src.ljust(IP_LEN, ' ')
             if not STP_ENABLED and ORCHESTRATOR_PATHS:
-                paths, weights = PathSelector(LEASTCOST_PATH).select(
-                    self._topology.get_graph(), hosts, req)
+                # to keep track of all possible paths
+                # the default strategy ALL is applied
+                # the paths are then tried best (least cost) to worst
+                paths, weights = PathSelector(PATH_ALGO).select(
+                    self._topology.get_graph(), hosts, req, PATH_WEIGHT)
                 if paths:
                     spawn(self._save_paths,
-                          _req_id, my_proto.attempt_no, paths, weights, COST_WEIGHT)
+                          _req_id, my_proto.attempt_no, paths, weights)
                     weights_idx = []
                     for target, _weights in weights.items():
                         for i, weight in enumerate(_weights):
@@ -393,12 +428,12 @@ class Protocol(RyuApp):
                 host_ip = host.main_interface.ipv4
                 Response(req_id, src_ip, attempt_no, host_ip,
                          host.get_cpu_free(), host.get_memory_free(),
-                         host.get_disk_free()).insert()
+                         host.get_disk_free(), NODE_ALGO).insert()
                 Response.as_csv()
             except:
                 pass
 
-    def _save_paths(self, _req_id, attempt_no, paths, weights, weight_type):
+    def _save_paths(self, _req_id, attempt_no, paths, weights):
         src_ip, req_id = _req_id
         for host, _paths in paths.items():
             for idx, path in enumerate(_paths):
@@ -419,7 +454,7 @@ class Protocol(RyuApp):
                     jitters.append(link.get_jitter())
                     loss_rates.append(link.get_loss_rate())
                 Path(req_id, src_ip, attempt_no, _path, bandwidths, delays,
-                     jitters, loss_rates, weight_type,
+                     jitters, loss_rates, PATH_ALGO, PATH_WEIGHT,
                      weights[host][idx]).insert()
         Path.as_csv()
 
@@ -452,6 +487,7 @@ class Protocol(RyuApp):
                     _requests[_req_id].cos = cos_dict[my_proto.cos_id]
                     _requests[_req_id].state = RREQ
                     _requests[_req_id].host = None
+                    _requests[_req_id]._host_mac_ip = None
                     spawn(self._select_host,
                           my_proto, _req_id, eth_src, ip_src)
                 return
@@ -463,7 +499,7 @@ class Protocol(RyuApp):
                 if _req_id in _requests:
                     # if late rres from previous host
                     if _requests[_req_id].host:
-                        if _requests[_req_id].host != (eth_src, ip_src):
+                        if _requests[_req_id]._host_mac_ip != (eth_src, ip_src):
                             info(
                                 'Recv late resource reservation response from %s' % ip_src)
                             my_proto.show()
@@ -478,7 +514,7 @@ class Protocol(RyuApp):
                     # if regular rres
                     elif _requests[_req_id].state == RREQ:
                         _requests[_req_id].state = HRES
-                        _requests[_req_id].host = (eth_src, ip_src)
+                        _requests[_req_id]._host_mac_ip = (eth_src, ip_src)
                         info('Recv resource reservation response from %s' % ip_src)
                         my_proto.show()
                         _key = (_req_id, eth_src)
@@ -518,7 +554,7 @@ class Protocol(RyuApp):
                 _req_id = (src_ip, req_id)
                 if (_req_id in _requests and _requests[_req_id].state == RREQ
                         and (not _requests[_req_id].host
-                             or _requests[_req_id].host == (eth_src, ip_src))):
+                             or _requests[_req_id]._host_mac_ip == (eth_src, ip_src))):
                     info('Recv resource reservation cancellation from %s' % ip_src)
                     my_proto.show()
                     _key = (_req_id, eth_src)
