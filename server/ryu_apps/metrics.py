@@ -90,8 +90,9 @@ RESOURCE_TYPES = {
                 }
             }
         },
-        'metrics': ['cpu.count', 'memory.free', 'disk.free'],
-        'units': ['', 'MB', 'GB']
+        'metrics': ['cpu.count', 'cpu.free', 'memory.total', 'memory.free',
+                    'disk.total', 'disk.free'],
+        'units': ['', '', 'MB', 'MB', 'GB', 'GB']
     },
     'fog_port': {
         'def': {
@@ -217,15 +218,27 @@ class Metrics(RyuApp):
                         node_id: {
                             'cpu.count': [{
                                 'timestamp': t,
-                                'value': node.get_cpu()
+                                'value': node.get_cpu_count()
+                            }],
+                            'cpu.free': [{
+                                'timestamp': t,
+                                'value': node.get_cpu_free()
+                            }],
+                            'memory.total': [{
+                                'timestamp': t,
+                                'value': node.get_memory_total()
                             }],
                             'memory.free': [{
                                 'timestamp': t,
-                                'value': node.get_ram()
+                                'value': node.get_memory_free()
+                            }],
+                            'disk.total': [{
+                                'timestamp': t,
+                                'value': node.get_disk_total()
                             }],
                             'disk.free': [{
                                 'timestamp': t,
-                                'value': node.get_disk()
+                                'value': node.get_disk_free()
                             }]
                         }
                     })

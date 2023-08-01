@@ -26,8 +26,9 @@ class TopologyState(RyuApp):
 
         Methods:
         --------
-        update_node_specs(id, cpu, ram, disk, timestamp): Update specs (CPU, 
-        RAM, disk) of node identified by ID at given timestamp.
+        update_node_specs(id, cpu_count, cpu_free, memory_total, memory_free, 
+        disk_total, disk_free, timestamp): Update specs (CPU, RAM, disk) of 
+        node identified by ID at given timestamp.
 
         update_interface_specs(node_id, ref, bandwidth_up, bandwidth_down,
         tx_packets, rx_packets, timestamp): Update specs (bandwidth_up, 
@@ -62,8 +63,10 @@ class TopologyState(RyuApp):
         spawn(self._update_link_state)
         spawn(self._check_update)
 
-    def update_node_specs(self, id, cpu: int = None, ram: float = None,
-                          disk: float = None, timestamp: float = 0):
+    def update_node_specs(self, id, cpu_count: int = None, 
+                          cpu_free: float = None, memory_total: float = None,
+                          memory_free: float = None, disk_total: float = None,
+                          disk_free: float = None, timestamp: float = 0):
         '''
             Update specs (CPU, RAM, disk) of node identified by ID at given 
             timestamp (default, 0, means current timestamp).
@@ -76,12 +79,18 @@ class TopologyState(RyuApp):
             node.set_timestamp(timestamp)
             # None values are used to differentiate from 0
             # None means don't update
-            if cpu != None:
-                node.set_cpu(cpu)
-            if ram != None:
-                node.set_ram(ram)
-            if disk != None:
-                node.set_disk(disk)
+            if cpu_count != None:
+                node.set_cpu_count(cpu_count)
+            if cpu_free != None:
+                node.set_cpu_free(cpu_free)
+            if memory_total != None:
+                node.set_memory_total(memory_total)
+            if memory_free != None:
+                node.set_memory_free(memory_free)
+            if disk_total != None:
+                node.set_disk_total(disk_total)
+            if disk_free != None:
+                node.set_disk_free(disk_free)
             return True
         return False
 

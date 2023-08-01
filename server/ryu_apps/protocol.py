@@ -180,7 +180,7 @@ class MyProtocol(Packet):
         # if (self.state == RREQ or self.state == RRES or self.state == DACK
         #        or self.state == DCAN):
         #    _suffix = self.src_ip
-        return self.req_id + str(self.attempt_no).encode() + _suffix
+        return self.req_id + _suffix
 
     def answers(self, other):
         if (isinstance(other, MyProtocol)
@@ -361,7 +361,11 @@ class Protocol(RyuApp):
             else:
                 for host in hosts:
                     info('Selecting host')
-                    host_mac, host_ip = host.main_interface
+                    try:
+                        host_mac = host.main_interface.mac
+                        host_ip = host.main_interface.ipv4
+                    except:
+                        continue
                     rreq_rt = PROTO_RETRIES
                     rres = None
                     while not rres and rreq_rt and req.state == RREQ:
@@ -385,10 +389,14 @@ class Protocol(RyuApp):
     def _save_hosts(self, _req_id, attempt_no, hosts):
         src_ip, req_id = _req_id
         for host in hosts:
-            _, host_ip = host.main_interface
-            Response(req_id, src_ip, attempt_no, host_ip,
-                     host.get_cpu(), host.get_ram(), host.get_disk()).insert()
-            Response.as_csv()
+            try:
+                host_ip = host.main_interface.ipv4
+                Response(req_id, src_ip, attempt_no, host_ip,
+                         host.get_cpu_free(), host.get_memory_free(),
+                         host.get_disk_free()).insert()
+                Response.as_csv()
+            except:
+                pass
 
     def _save_paths(self, _req_id, attempt_no, paths, weights, weight_type):
         src_ip, req_id = _req_id
@@ -477,15 +485,16 @@ class Protocol(RyuApp):
                         _responses[_key] = req
                         if _key in _events:
                             _events[_key].set()
-                        # update node specs
+                        # update node specs (not necessary, just to eliminate
+                        # the node in case it no longer has resources)
                         host_id = self._topology.get_by_mac(eth_src, 'node_id')
                         host = self._topology.get_node(host_id)
                         cos = _requests[_req_id].cos
                         self._topology_state.update_node_specs(
                             host_id,
-                            host.get_cpu() - cos.get_min_cpu(),
-                            host.get_ram() - cos.get_min_ram(),
-                            host.get_disk() - cos.get_min_disk())
+                            host.get_cpu_free() - cos.get_min_cpu(),
+                            host.get_memory_free() - cos.get_min_ram(),
+                            host.get_disk_free() - cos.get_min_disk())
                     info('Send resource reservation acknowledgement to %s' % ip_src)
                     self._sendp(Ether(src=DECOY_MAC, dst=eth_src)
                                 / IP(src=DECOY_IP, dst=ip_src)

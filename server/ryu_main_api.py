@@ -28,11 +28,6 @@ JSON request body: {
         'num': <int>,
         'mac': <str>,
         'ipv4': <str>,
-        'link': {
-         ** 'dst_id': <Any>,
-         ** 'dst_port_name': <str>,
-         ** 'state': <bool>,
-        }
     }]
 }
 
@@ -182,6 +177,8 @@ class RyuMainAPI(ControllerBase):
             # and add to kwargs
             queue[-1][1]['label'] = str(json['label']) if (
                 'label' in json) else None
+            queue[-1][1]['threshold'] = float(json['threshold']) if (
+                'threshold' in json) else None
 
             # node can be added with interfaces
             if 'interfaces' in json:
@@ -202,32 +199,13 @@ class RyuMainAPI(ControllerBase):
                     queue[-1][1]['ipv4'] = str(interface['ipv4']) if (
                         'ipv4' in interface) else None
 
-                    # interface can be added with link
-                    if 'link' in interface:
-                        link = interface['link']
-                        # check if dst node and port exist
-                        dst_id = link['dst_id']
-                        if self.ryu_main.topology.get_node(dst_id):
-                            dst_port_name = str(link['dst_port_name'])
-                            if self.ryu_main.topology.get_interface(
-                                    dst_id, dst_port_name):
-                                # required data fields for link
-                                queue.append((self._add_link, {
-                                    'src_id': json['id'],
-                                    'dst_id': dst_id,
-                                    'src_port_name': str(interface['name']),
-                                    'dst_port_name': dst_port_name,
-                                    'state': bool(link['state']),
-                                }))
-
-                            else:
-                                return Response(dst_port_name,
-                                                status=HTTP_NOT_FOUND)
-
-                        else:
-                            return Response(dst_id, status=HTTP_NOT_FOUND)
+                queue.append((self._set_main_interface, {
+                    'node_id': json['id'],
+                    'main_interface': str(json['main_interface']),
+                }))
 
         except (KeyError, TypeError, ValueError) as e:
+            print(e)
             return Response(str(e), status=HTTP_BAD_REQUEST)
 
         except Exception as e:
@@ -279,8 +257,14 @@ class RyuMainAPI(ControllerBase):
             queue[-1][1]['timestamp'] = timestamp
             queue[-1][1]['cpu_count'] = int(json['cpu_count']) if (
                 'cpu_count' in json) else None
+            queue[-1][1]['cpu_free'] = float(json['cpu_free']) if (
+                'cpu_free' in json) else None
+            queue[-1][1]['memory_total'] = float(json['memory_total']) if (
+                'memory_total' in json) else None
             queue[-1][1]['memory_free'] = float(json['memory_free']) if (
                 'memory_free' in json) else None
+            queue[-1][1]['disk_total'] = float(json['disk_total']) if (
+                'disk_total' in json) else None
             queue[-1][1]['disk_free'] = float(json['disk_free']) if (
                 'disk_free' in json) else None
 
@@ -324,22 +308,23 @@ class RyuMainAPI(ControllerBase):
     def _add_node(self, **kwargs):
         return self.ryu_main.topology.add_node(
             kwargs['id'], kwargs['state'], kwargs['type'],
-            kwargs.get('label', None))
+            kwargs.get('label', None), kwargs.get('threshold', None))
 
     def _add_interface(self, **kwargs):
         return self.ryu_main.topology.add_interface(
             kwargs['node_id'], kwargs['name'], kwargs.get('num', None),
             kwargs.get('mac', None), kwargs.get('ipv4', None))
 
-    def _add_link(self, **kwargs):
-        return self.ryu_main.topology.add_link(
-            kwargs['src_id'], kwargs['dst_id'], kwargs['src_port_name'],
-            kwargs['dst_port_name'], kwargs['state'])
+    def _set_main_interface(self, **kwargs):
+        return self.ryu_main.topology.set_main_interface(
+            kwargs['node_id'], kwargs['main_interface'])
 
     def _update_node_specs(self, **kwargs):
         return self.ryu_main.topology_state.update_node_specs(
-            kwargs['id'], kwargs.get('cpu_count', None),
-            kwargs.get('memory_free', None), kwargs.get('disk_free', None),
+            kwargs['id'],
+            kwargs.get('cpu_count', None), kwargs.get('cpu_free', None),
+            kwargs.get('memory_total', None), kwargs.get('memory_free', None),
+            kwargs.get('disk_total', None), kwargs.get('disk_free', None),
             kwargs.get('timestamp', time()))
 
     def _update_interface_specs(self, **kwargs):

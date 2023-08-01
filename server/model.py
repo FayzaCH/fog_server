@@ -191,8 +191,8 @@ class InterfaceSpecs(Model):
         timestamp: Default is time of update.
     '''
 
-    def __init__(self, capacity: float = 0, bandwidth_up: float = 0, 
-                 bandwidth_down: float = 0, tx_packets: int = 0, 
+    def __init__(self, capacity: float = 0, bandwidth_up: float = 0,
+                 bandwidth_down: float = 0, tx_packets: int = 0,
                  rx_packets: int = 0, timestamp: float = 0):
         self.capacity = capacity
         self.bandwidth_up = bandwidth_up
@@ -320,20 +320,31 @@ class NodeSpecs(Model):
 
         Attributes:
         -----------
-        cpu: Number of CPUs. Default is 0.
+        cpu_count: Number of CPUs. Default is 0.
 
-        ram: Size of free RAM. Default is 0.
+        cpu_free: Amount of free CPU. Default is 0.
 
-        disk: Size of free disk. Default is 0.
+        memory_total: Total size of RAM. Default is 0.
+
+        memory_free: Size of free RAM. Default is 0.
+
+        disk_total: Total size of disk. Default is 0.
+
+        disk_free: Size of free disk. Default is 0.
 
         timestamp: Default is time of update.
     '''
 
-    def __init__(self, cpu: int = 0, ram: float = 0, disk: float = 0,
+    def __init__(self, cpu_count: int = 0, cpu_free: float = 0,
+                 memory_total: float = 0, memory_free: float = 0,
+                 disk_total: float = 0, disk_free: float = 0,
                  timestamp: float = 0):
-        self.cpu = cpu
-        self.ram = ram
-        self.disk = disk
+        self.cpu_count = cpu_count
+        self.cpu_free = cpu_free
+        self.memory_total = memory_total
+        self.memory_free = memory_free
+        self.disk_total = disk_total
+        self.disk_free = disk_free
         self.timestamp = timestamp if timestamp else time()
 
 
@@ -366,17 +377,29 @@ class Node(Model):
         self.type = type
         self.label = label
         self.interfaces = interfaces if interfaces else {}
-        self.main_interface = None
+        self.main_interface = None  # Interface object
         self.specs = specs if specs else NodeSpecs()
+        # float (gross value; to get percentage, multiply by 100)
+        self.threshold = 1
 
     def as_dict(self, flat: bool = False):
         d = super().as_dict(flat)
         d['type'] = self.type.value
         if not flat:
+            try:
+                d['main_interface'] = self.main_interface.as_dict()
+            except:
+                pass
             d['specs'] = self.specs.as_dict()
             for name, intf in self.interfaces.items():
                 d['interfaces'][name] = intf.as_dict()
         else:
+            del d['main_interface']
+            try:
+                d.update(self.main_interface.as_dict(
+                    flat, _prefix='main_interface'))
+            except:
+                pass
             del d['specs']
             d.update(self.specs.as_dict(flat, _prefix='specs'))
             del d['interfaces']
@@ -389,25 +412,46 @@ class Node(Model):
     # they are implemented (whether they are attributes in the object, are
     # objects themselves within an Iterable, etc.)
 
-    def get_cpu(self):
-        return self.specs.cpu
+    def get_cpu_count(self):
+        return self.specs.cpu_count
 
-    def set_cpu(self, cpu: int = 0):
-        self.specs.cpu = cpu
+    def set_cpu_count(self, cpu_count: int = 0):
+        self.specs.cpu_count = cpu_count
         self.set_timestamp()
 
-    def get_ram(self):
-        return self.specs.ram
+    def get_cpu_free(self):
+        return self.specs.cpu_free
 
-    def set_ram(self, ram: float = 0):
-        self.specs.ram = ram
+    def set_cpu_free(self, cpu_free: int = 0):
+        self.specs.cpu_free = cpu_free
         self.set_timestamp()
 
-    def get_disk(self):
-        return self.specs.disk
+    def get_memory_total(self):
+        return self.specs.memory_total
 
-    def set_disk(self, disk: float = 0):
-        self.specs.disk = disk
+    def set_memory_total(self, memory_total: float = 0):
+        self.specs.memory_total = memory_total
+        self.set_timestamp()
+
+    def get_memory_free(self):
+        return self.specs.memory_free
+
+    def set_memory_free(self, memory_free: float = 0):
+        self.specs.memory_free = memory_free
+        self.set_timestamp()
+
+    def get_disk_total(self):
+        return self.specs.disk_total
+
+    def set_disk_total(self, disk_total: float = 0):
+        self.specs.disk_total = disk_total
+        self.set_timestamp()
+
+    def get_disk_free(self):
+        return self.specs.disk_free
+
+    def set_disk_free(self, disk_free: float = 0):
+        self.specs.disk_free = disk_free
         self.set_timestamp()
 
     def get_timestamp(self):
@@ -431,13 +475,14 @@ class LinkSpecs(Model):
 
         jitter: Default is inf.
 
-        loss_rate: Default is 1.
+        loss_rate: Default is 1 (gross value; to get percentage, 
+        multiply by 100). 
 
         timestamp: Default is time of update.
     '''
 
-    def __init__(self, capacity: float = 0, bandwidth: float = 0, 
-                 delay: float = float('inf'), jitter: float = float('inf'), 
+    def __init__(self, capacity: float = 0, bandwidth: float = 0,
+                 delay: float = float('inf'), jitter: float = float('inf'),
                  loss_rate: float = 1, timestamp: float = 0):
         self.capacity = capacity
         self.bandwidth = bandwidth
@@ -547,8 +592,8 @@ class Topology(Model):
 
         get_node(id): Returns Node object identified by id.
 
-        add_node(id, state, type, label): Create Node object and add it to 
-        topology graph.
+        add_node(id, state, type, label, threshold): Create Node object and 
+        add it to topology graph.
 
         delete_node(id): Delete node identified by id from topology graph 
         (also deletes associated interfaces and links).
@@ -619,12 +664,17 @@ class Topology(Model):
 
         return self.get_graph().nodes.get(id, {}).get('node', None)
 
-    def add_node(self, id, state: bool, type: NodeType, label: str = None):
+    def add_node(self, id, state: bool, type: NodeType, label: str = None,
+                 threshold: float = None):
         '''
             Create Node object and add it to topology graph.
         '''
 
-        self.get_graph().add_node(id, node=Node(id, state, type, label))
+        node = Node(id, state, type, label)
+        if threshold == None:
+            threshold = 1
+        node.threshold = threshold
+        self.get_graph().add_node(id, node=node)
 
     def delete_node(self, id):
         '''
@@ -816,6 +866,11 @@ class Topology(Model):
                     self.get_link(dst_id, src_id))
         return None, None
 
+    def set_main_interface(self, node_id, name: str):
+        node = self.get_node(node_id)
+        if node:
+            node.main_interface = node.interfaces.get(name, None)
+
 
 class CoSSpecs(Model):
     '''
@@ -834,7 +889,8 @@ class CoSSpecs(Model):
 
         max_delay: Default is inf.
 
-        max_jitter: Default is inf.
+        max_jitter: Default is inf (gross value; to get percentage, 
+        multiply by 100).
 
         max_loss_rate: Default is 1.
 
@@ -853,7 +909,7 @@ class CoSSpecs(Model):
                  max_delay: float = float('inf'),
                  max_jitter: float = float('inf'),
                  max_loss_rate: float = 1,
-                 min_cpu: int = 0,
+                 min_cpu: float = 0,
                  min_ram: float = 0,
                  min_disk: float = 0):
         self.max_response_time = max_response_time
@@ -949,7 +1005,7 @@ class CoS(Model):
     def get_min_cpu(self):
         return self.specs.min_cpu
 
-    def set_min_cpu(self, cpu: int = 0):
+    def set_min_cpu(self, cpu: float = 0):
         self.specs.min_cpu = cpu
 
     def get_min_ram(self):
@@ -1036,10 +1092,10 @@ class Request(Model):
             src = src.id
         return ('\nrequest(id=%s, src=%s, state=(%s), cos=%s, host=%s, '
                 'hreq_at=%s, dres_at=%s)\n' % (
-                    self.id, src, 
-                    self._states[self.state] if self.state in self._states 
-                                             else str(self.state),
-                    self.cos.name, self.host, self._t(self.hreq_at), 
+                    self.id, src,
+                    self._states[self.state] if self.state in self._states
+                    else str(self.state),
+                    self.cos.name, self.host, self._t(self.hreq_at),
                     self._t(self.dres_at)))
 
     def as_dict(self, flat: bool = False):
@@ -1166,7 +1222,7 @@ class Response(Model):
 
         host: Network application host IP address.
 
-        cpu: Number of CPUs offered by host.
+        cpu: Amount of CPU offered by host.
 
         ram: RAM size offered by host.
 
@@ -1174,7 +1230,7 @@ class Response(Model):
     '''
 
     def __init__(self, req_id, src: str, attempt_no: int, host: str,
-                 cpu: int = None, ram: float = None, disk: float = None):
+                 cpu: float = None, ram: float = None, disk: float = None):
         self.req_id = req_id
         self.src = src
         self.attempt_no = attempt_no
@@ -1204,7 +1260,8 @@ class Path(Model):
 
         jitters: List of path links jitters (in seconds).
 
-        loss_rates: List of path links loss rates.
+        loss_rates: List of path links loss rates (gross values; to get 
+        percentages, multiply by 100).
 
         weight_type: Path weight type (hop, delay, etc.).
 
@@ -1212,7 +1269,7 @@ class Path(Model):
     '''
 
     def __init__(self, req_id, src: str, attempt_no: int, path: list,
-                 bandwidths: list, delays: list, jitters: list, 
+                 bandwidths: list, delays: list, jitters: list,
                  loss_rates: list, weight_type: str, weight: float):
         self.req_id = req_id
         self.src = src

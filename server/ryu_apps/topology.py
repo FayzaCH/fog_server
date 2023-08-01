@@ -101,38 +101,8 @@ class Topology(RyuApp, Topo):
 
         self._switches = get_app(SWITCHES)
 
-        self._host_ports = {}  # maps host mac to host port object
-
         spawn(self._add_host_links)
         spawn(self._check_clients)
-
-    def add_interface(self, node_id, name: str, num: int = None,
-                      mac: str = None, ipv4: str = None):
-        '''
-            Create Interface object and add it to interfaces dict of Node 
-            object identified by node_id.
-
-            Returns True if added, False if not.
-        '''
-
-        if super(Topology, self).add_interface(node_id, name, num, mac, ipv4):
-            spawn(self._set_main_interface, self.get_node(node_id), mac, ipv4)
-            return True
-        return False
-
-    def _set_main_interface(self, node: Node, mac: str, ipv4: str):
-        retries = 100
-        while retries:
-            if mac in self._host_ports:
-                port = self._host_ports[mac]
-                self._interfaces[mac]['dpid'] = port.dpid
-                self._interfaces[mac]['port_name'] = port.name.decode()
-                self._interfaces[mac]['port_no'] = port.port_no
-                if not node.main_interface:
-                    node.main_interface = (mac, ipv4)
-                return
-            retries -= 1
-            sleep(1)
 
     @set_ev_cls(EventSwitchEnter)
     def _switch_enter_handler(self, ev):
@@ -193,11 +163,16 @@ class Topology(RyuApp, Topo):
     @set_ev_cls(EventHostAdd)
     def _host_add_handler(self, ev):
         host = ev.host
-        self._host_ports[host.mac] = host.port
+        mac = host.mac
+        port = host.port
+        self._interfaces.setdefault(mac, {})
+        self._interfaces[mac]['dpid'] = port.dpid
+        self._interfaces[mac]['port_name'] = port.name.decode()
+        self._interfaces[mac]['port_no'] = port.port_no
 
     @set_ev_cls(EventHostDelete)
     def _host_delete_handler(self, ev):
-        self._host_ports.pop(ev.host.mac, None)
+        pass
 
     @set_ev_cls(EventHostMove)
     def _host_move_handler(self, ev):

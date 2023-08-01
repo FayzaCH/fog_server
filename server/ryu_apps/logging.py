@@ -53,12 +53,19 @@ class Logging(RyuApp):
         for node in list(self._topology.get_nodes().values()):
             if not header:
                 print()
-                print('           node id |          label |'
-                      '   cpu   ram (MB)   disk (GB)')
+                print('           Node ID |          Label |'
+                      '   CPUs   Free CPUs   RAM (MB)   Free RAM (MB)'
+                      '   Disk (GB)   Free disk (GB)')
                 header = True
-            print(' {:>17} | {:>14} |   {:>3}   {:>8}   {:>9}'.format(
-                  node.id, node.label, node.get_cpu(),
-                  round(node.get_ram(), 2), round(node.get_disk(), 2)))
+            print(' {:>17} | {:>14} |'
+                  '   {:>4}   {:>9}   {:>8}   {:>13}'
+                  '   {:>9}   {:>14}'.format(
+                      node.id, node.label, node.get_cpu_count(),
+                      round(node.get_cpu_free(), 2),
+                      round(node.get_memory_total(), 2),
+                      round(node.get_memory_free(), 2),
+                      round(node.get_disk_total(), 2),
+                      round(node.get_disk_free(), 2)))
         if header:
             print()
 
@@ -81,10 +88,10 @@ class Logging(RyuApp):
                     if dst:
                         if not header:
                             print()
-                            print('            src -> dst            |'
-                                  '   capacity (Mbps)   bandwidth (Mbps)'
-                                  '   delay (ms)   jitter (ms)   loss (%)'
-                                  '   |   state')
+                            print('            SRC -> DST            |'
+                                  '   Capacity (Mbps)   Bandwidth (Mbps)'
+                                  '   Delay (ms)   Jitter (ms)   Loss (%)'
+                                  '   |   State')
                             header = True
                         print(' {:>14} -> {:<14} |   {:>15}   {:>16}'
                               '   {:>10}   {:>11}   {:>8}   |   {}'.format(

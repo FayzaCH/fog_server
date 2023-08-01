@@ -1,25 +1,25 @@
 '''
-    Host and path selection algorithms for network applications based on their 
-    requirements. It uses the Strategy design pattern to make it easier to 
+    Host and path selection algorithms for network applications based on their
+    requirements. It uses the Strategy design pattern to make it easier to
     define various algorithms that can be chosen at runtime.
 
     Classes:
     --------
     NodeSelector: Node selector through given algorithm.
 
-    PathSelector: Path selector through given algorithm. 
+    PathSelector: Path selector through given algorithm.
 
     Algorithms:
     -----------
-    SIMPLENODE: Simple selection of nodes that satisfy required CPU, RAM, 
+    SIMPLENODE: Simple selection of nodes that satisfy required CPU, RAM,
     and disk.
 
-    DIJKSTRA: Best path selection based on Dijkstra's shortest path algorithm. 
-    Calculates link weights and gets the shortest path from the source node to 
+    DIJKSTRA: Best path selection based on Dijkstra's shortest path algorithm.
+    Calculates link weights and gets the shortest path from the source node to
     each potential destination node.
 
-    LEASTCOST: Best path selection based on path cost that is calculated with 
-    an equation that includes bandwidth cost, delay cost, jitter cost, and 
+    LEASTCOST: Best path selection based on path cost that is calculated with
+    an equation that includes bandwidth cost, delay cost, jitter cost, and
     loss rate cost.
 '''
 
@@ -58,13 +58,13 @@ class NodeSelector:
 
         Algorithms:
         -----------
-        SIMPLENODE: Simple selection of nodes that satisfy required CPU, RAM, 
+        SIMPLENODE: Simple selection of nodes that satisfy required CPU, RAM,
         and disk.
 
         Methods:
         --------
-        select(nodes, req, strategy): Select node(s) that satisfy req through 
-        given algorithm and based on given strategy (ALL or FIRST). Default 
+        select(nodes, req, strategy): Select node(s) that satisfy req through
+        given algorithm and based on given strategy (ALL or FIRST). Default
         strategy is ALL.
     '''
 
@@ -76,7 +76,7 @@ class NodeSelector:
 
     def select(self, nodes: list, req: Request, strategy: str = ALL):
         '''
-            Select node(s) that satisfy req through given algorithm and based 
+            Select node(s) that satisfy req through given algorithm and based
             on given strategy (ALL or FIRST). Default strategy is ALL.
 
             Returns selected Node(s).
@@ -86,24 +86,24 @@ class NodeSelector:
 
 class PathSelector:
     '''
-        Path selector through given algorithm. 
+        Path selector through given algorithm.
 
         Algorithms:
         -----------
-        DIJKSTRA: Best path selection based on Dijkstra's shortest path 
-        algorithm. Calculates link weights and gets the shortest path from the 
+        DIJKSTRA: Best path selection based on Dijkstra's shortest path
+        algorithm. Calculates link weights and gets the shortest path from the
         source node to each potential destination node.
 
-        LEASTCOST: Best path selection based on path cost that is calculated 
-        with an equation that includes bandwidth cost, delay cost, jitter cost, 
+        LEASTCOST: Best path selection based on path cost that is calculated
+        with an equation that includes bandwidth cost, delay cost, jitter cost,
         and loss rate cost.
 
         Methods:
         --------
-        select(graph, dst, req, weight, strategy): Select path(s) in graph 
-        from req.src to target Nodes, that satisfy req through given algorithm 
-        and based on given weight (HOP, DELAY, COST, etc.) and given strategy 
-        (ALL or BEST). Default weight is nothing (all edges are equal). 
+        select(graph, dst, req, weight, strategy): Select path(s) in graph
+        from req.src to target Nodes, that satisfy req through given algorithm
+        and based on given weight (HOP, DELAY, COST, etc.) and given strategy
+        (ALL or BEST). Default weight is nothing (all edges are equal).
         Default strategy is ALL.
     '''
 
@@ -118,9 +118,9 @@ class PathSelector:
     def select(self, graph: DiGraph, targets: list, req: Request,
                weight: str = '', strategy: str = ALL):
         '''
-            Select path(s) in graph from req.src to target Nodes, that satisfy 
-            req through given algorithm and based on given weight (HOP, DELAY, 
-            COST, etc.) and given strategy (ALL or BEST). Default weight is 
+            Select path(s) in graph from req.src to target Nodes, that satisfy
+            req through given algorithm and based on given weight (HOP, DELAY,
+            COST, etc.) and given strategy (ALL or BEST). Default weight is
             nothing (all edges are equal). Default strategy is ALL.
 
             Returns selected path(s) and weight(s).
@@ -143,9 +143,12 @@ class _SimpleNodeSelection(_NodeSelection):
         def _check_resources(node: Node, req: Request):
             return (node != req.src  # exclude source node
                     and node.state == True
-                    and node.get_cpu() >= req.get_min_cpu()
-                    and node.get_ram() >= req.get_min_ram()
-                    and node.get_disk() >= req.get_min_disk())
+                    and (node.get_cpu_free() - req.get_min_cpu()
+                         >= node.get_cpu_count() * node.threshold)
+                    and (node.get_memory_free() - req.get_min_ram()
+                         >= node.get_memory_total() * node.threshold)
+                    and (node.get_disk_free() - req.get_min_disk()
+                         >= node.get_disk_total() * node.threshold))
 
         if strategy == ALL:
             return [node for node in nodes if _check_resources(node, req)]

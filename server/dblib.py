@@ -316,7 +316,10 @@ def _adapt(obj: Model):
     if obj.__class__.__name__ is Request.__name__:
         src = obj.src
         if isinstance(src, Node):
-            _, src = src.main_interface
+            try:
+                src = src.main_interface.ipv4
+            except:
+                src = '' 
         return (obj.id, src, obj.cos.id, obj.data, obj.result, obj.host,
                 obj.state, obj.hreq_at, obj.dres_at)
 

@@ -71,7 +71,7 @@ create table if not exists responses (
     src text not null,
   	attempt_no integer not null,
     host text not null,
-    cpu integer,
+    cpu real,
     ram real,
     disk real,
 
