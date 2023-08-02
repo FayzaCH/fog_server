@@ -410,7 +410,8 @@ class Protocol(RyuApp):
         timestamp = time()
         for host, _paths in paths.items():
             for idx, path in enumerate(_paths):
-                _path = [src_ip]
+                _path = [self._topology.get_link(
+                    path[0], path[1]).src_port.ipv4]
                 bandwidths = []
                 delays = []
                 jitters = []
@@ -426,8 +427,8 @@ class Protocol(RyuApp):
                     delays.append(link.get_delay())
                     jitters.append(link.get_jitter())
                     loss_rates.append(link.get_loss_rate())
-                Path(req_id, src_ip, attempt_no, host, _path, PATH_ALGO, 
-                     bandwidths, delays, jitters, loss_rates, PATH_WEIGHT, 
+                Path(req_id, src_ip, attempt_no, host, _path, PATH_ALGO,
+                     bandwidths, delays, jitters, loss_rates, PATH_WEIGHT,
                      weights[host][idx], timestamp).insert()
         Path.as_csv()
 

@@ -97,7 +97,7 @@ from json import load
 
 from ryu.app.wsgi import route, Response as HTTPResponse, ControllerBase
 
-from networkx import draw
+from networkx import draw, shortest_path
 from matplotlib.pyplot import savefig, clf
 
 from model import NodeType, Request, Attempt, Response, Path, CoS
@@ -111,13 +111,12 @@ import config
 
 node_algo = PROTO_SEND_TO
 path_algo = 'STP'
-path_weight = 'STP'
+path_weight = None
 if PROTO_SEND_TO == SEND_TO_ORCHESTRATOR:
     from ryu_apps.common import NODE_ALGO
     node_algo = NODE_ALGO
     if not STP_ENABLED:
         path_algo = 'SHORTEST'
-        path_weight = 'HOP'
         if ORCHESTRATOR_PATHS:
             from ryu_apps.common import PATH_ALGO, PATH_WEIGHT
             path_algo = PATH_ALGO
@@ -178,6 +177,7 @@ class RyuMainAPI(ControllerBase):
     def __init__(self, req, link, data, **config):
         super(RyuMainAPI, self).__init__(req, link, data, **config)
         self.ryu_main = data['ryu_main']
+        self._topology = self.ryu_main.topology
 
     @route('root', '/')
     def root(self, _):
@@ -210,7 +210,7 @@ class RyuMainAPI(ControllerBase):
         json = req.json
         try:
             # check if node already exists
-            if self.ryu_main.topology.get_node(json['id']):
+            if self._topology.get_node(json['id']):
                 return HTTPResponse(status=HTTP_EXISTS)
 
             # check if required data fields available with correct types
@@ -266,25 +266,25 @@ class RyuMainAPI(ControllerBase):
             if func(**kwargs) == False:
                 # if error, undo everything by deleting node
                 # this will also delete interfaces and links
-                self.ryu_main.topology.delete_node(json['id'])
+                self._topology.delete_node(json['id'])
                 return HTTPResponse(status=HTTP_INTERNAL)
 
     @route('node', '/node/{id}', methods=['DELETE'])
     def delete_node(self, _, id):
-        self.ryu_main.topology.delete_node(id)
+        self._topology.delete_node(id)
 
     @route('node_specs', '/node_specs/{id}', methods=['PUT'])
     def update_node_specs(self, req, id):
         # check if resource exists
         #  could be a host
-        if not self.ryu_main.topology.get_node(id):
+        if not self._topology.get_node(id):
             try:
                 # or a switch
                 # (id is dpid but converted from hexadecimal to decimal)
                 id = int(id, 16)
             except (TypeError, ValueError):
                 return HTTPResponse(status=HTTP_NOT_FOUND)
-            if not self.ryu_main.topology.get_node(id):
+            if not self._topology.get_node(id):
                 return HTTPResponse(status=HTTP_NOT_FOUND)
 
         # queue for functions to be called after PUT data validation
@@ -348,41 +348,29 @@ class RyuMainAPI(ControllerBase):
 
     @route('request', '/request', methods=['POST'])
     def add_request(self, req):
+
+        # TODO test handling parallel requests (make threads if it helps)
+
         try:
             json = req.json
             req_id = str(json['id'])
             src = str(json['src'])
+            req_host = json['host']
             try:
                 result = json['result'].encode()
             except:
                 result = None
             try:
-                host = json['host'].encode()
-            except:
-                host = None
-            try:
                 dres_at = float(json['dres_at'])
             except:
                 dres_at = None
-            if STP_ENABLED:
-                # TODO path is STP path
-                pass
-            else:
-                if ORCHESTRATOR_PATHS:
-                    # TODO paths are from protocol
-                    pass
-                else:
-                    # TODO path is from simple_switch_sp_13
-                    pass
             Request(req_id, src, CoS.select(id=('=', int(json['cos_id'])))[0],
-                    str(json['data']).encode(), result, host, None,
-                    int(json['state']), float(json['hreq_at']), dres_at).insert()
+                    str(json['data']).encode(), result, req_host,
+                    self._get_path(src, req_host), int(json['state']),
+                    float(json['hreq_at']), dres_at).insert()
             for attempt in json['attempts']:
                 attempt_no = int(attempt['attempt_no'])
-                try:
-                    host = attempt['host'].encode()
-                except:
-                    host = None
+                att_host = attempt['host']
                 try:
                     hres_at = float(attempt['hres_at'])
                 except:
@@ -399,17 +387,22 @@ class RyuMainAPI(ControllerBase):
                     dres_at = float(attempt['dres_at'])
                 except:
                     dres_at = None
-                Attempt(req_id, src, attempt_no, host, None,
-                        int(attempt['state']), float(attempt['hreq_at']),
-                        hres_at, rres_at, dres_at).insert()
+                Attempt(req_id, src, attempt_no, att_host,
+                        self._get_path(src, att_host), int(attempt['state']),
+                        float(attempt['hreq_at']), hres_at, rres_at, dres_at).insert()
                 if 'responses' in attempt:
                     for response in attempt['responses']:
-                        host = str(response['host'])
-                        Response(req_id, src, attempt_no, host, node_algo,
+                        res_host = str(response['host'])
+                        Response(req_id, src, attempt_no, res_host, node_algo,
                                  float(response['cpu']),
                                  float(response['ram']),
                                  float(response['disk']),
                                  float(response['timestamp'])).insert()
+                        path, bws, dels, jits, loss, ts = self._get_path(
+                            src, res_host, specs=True)
+                        Path(req_id, src, attempt_no, res_host,
+                             path, path_algo, bws, dels, jits, loss,
+                             path_weight, None, ts).insert()
 
         except (KeyError, TypeError, ValueError) as e:
             print(e.__class__.__name__, e)
@@ -418,26 +411,27 @@ class RyuMainAPI(ControllerBase):
         Request.as_csv()
         Attempt.as_csv()
         Response.as_csv()
+        Path.as_csv()
 
     # for testing
     @route('test', '/topology_png')
     def topology(self, _):
         clf()
-        draw(self.ryu_main.topology.get_graph(), with_labels=True)
+        draw(self._topology.get_graph(), with_labels=True)
         savefig(ROOT_PATH + '/data/' + str(time()) + '.png')
 
     def _add_node(self, **kwargs):
-        return self.ryu_main.topology.add_node(
+        return self._topology.add_node(
             kwargs['id'], kwargs['state'], kwargs['type'],
             kwargs.get('label', None), kwargs.get('threshold', None))
 
     def _add_interface(self, **kwargs):
-        return self.ryu_main.topology.add_interface(
+        return self._topology.add_interface(
             kwargs['node_id'], kwargs['name'], kwargs.get('num', None),
             kwargs.get('mac', None), kwargs.get('ipv4', None))
 
     def _set_main_interface(self, **kwargs):
-        return self.ryu_main.topology.set_main_interface(
+        return self._topology.set_main_interface(
             kwargs['node_id'], kwargs['main_interface'])
 
     def _update_node_specs(self, **kwargs):
@@ -457,3 +451,52 @@ class RyuMainAPI(ControllerBase):
             kwargs.get('tx_packets', None),
             kwargs.get('rx_packets', None),
             kwargs.get('timestamp', time()))
+
+    def _get_path(self, src_ip, dst_ip, specs: bool = False):
+        try:
+            if STP_ENABLED or not ORCHESTRATOR_PATHS:
+                # if STP enabled
+                #   only one path, shortest path
+                # if STP disabled and orchestrator paths disabled
+                #   path is from simple_switch_sp_13, also shortest path
+                graph = self._topology.get_graph()
+                src = self._topology.get_by_ip(src_ip, 'node_id')
+                if src in graph.nodes:
+                    dst = self._topology.get_by_ip(dst_ip, 'node_id')
+                    if dst in graph.nodes:
+                        path_ = shortest_path(graph, src, dst, weight=None)
+                        path = [self._topology.get_link(
+                            path_[0], path_[1]).src_port.ipv4]
+                        if specs:
+                            bandwidths = []
+                            delays = []
+                            jitters = []
+                            loss_rates = []
+                            timestamp = time()
+                        len_path = len(path_)
+                        for i in range(1, len_path):
+                            if i < len_path - 1:
+                                path.append(f'{path_[i]:x}')
+                            link = self._topology.get_link(
+                                path_[i-1], path_[i])
+                            if i == len_path - 1:
+                                path.append(link.dst_port.ipv4)
+                            if specs:
+                                bandwidths.append(link.get_bandwidth())
+                                delays.append(link.get_delay())
+                                jitters.append(link.get_jitter())
+                                loss_rates.append(link.get_loss_rate())
+                        if specs:
+                            return path, bandwidths, delays, jitters, loss_rates, timestamp
+                        return path
+            else:
+                # TODO
+                # if STP disabled and orchestrator paths enabled
+                # path is from protocol
+                pass
+        except Exception as e:
+            print(' *** ERROR in ryu_main_api._get_path: ',
+                  e.__class__.__name__, e)
+        if specs:
+            return None, None, None, None, None, None
+        return None

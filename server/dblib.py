@@ -354,7 +354,7 @@ def _adapt(obj: Model):
         if obj.loss_rates:
             loss_rates = str(obj.loss_rates)
         return (obj.req_id, obj.src, obj.attempt_no, obj.host, path,
-                bandwidths, delays, jitters, loss_rates, obj.algorithm,
+                obj.algorithm, bandwidths, delays, jitters, loss_rates, 
                 obj.weight_type, obj.weight, obj.timestamp)
 
 

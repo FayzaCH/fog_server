@@ -630,6 +630,10 @@ class Topology(Model):
         identified by mac (attr can be 'node_id', 'name', 'ipv4', 'dpid', 
         'port_name', or 'port_no').
 
+        get_by_ip(ipv4, attr): Returns value of attribute attr of interface 
+        identified by ipv4 (attr can be 'node_id', 'name', 'mac', 'dpid', 
+        'port_name', or 'port_no').
+
         get_links(): Returns nested dict of Link objects with source node ID 
         and destination node ID as keys.
 
@@ -649,6 +653,8 @@ class Topology(Model):
         self._num_to_name = {}  # maps node id and port number to port name
         self._interfaces = {}  # maps host interface mac to dict containing
         # node_id, name, ipv4, dpid, port_name, and port_no
+        self._ips = {}  # maps host interface ipv4 to dict containing
+        # node_id, name, mac, dpid, port_name, and port_no
 
     def get_graph(self):
         '''
@@ -687,6 +693,7 @@ class Topology(Model):
             if node:
                 for interface in list(node.interfaces.values()):
                     self._interfaces.pop(interface.mac, None)
+                    self._ips.pop(interface.ipv4, None)
 
             self.get_graph().remove_node(id)
 
@@ -726,6 +733,11 @@ class Topology(Model):
                 self._interfaces[mac]['node_id'] = node_id
                 self._interfaces[mac]['name'] = name
                 self._interfaces[mac]['ipv4'] = ipv4
+            if ipv4:
+                self._ips.setdefault(ipv4, {})
+                self._ips[ipv4]['node_id'] = node_id
+                self._ips[ipv4]['name'] = name
+                self._ips[ipv4]['mac'] = mac
             return True
         return False
 
@@ -823,6 +835,15 @@ class Topology(Model):
         '''
 
         return self._interfaces.get(mac, {}).get(attr, None)
+
+    def get_by_ip(self, ipv4: str, attr: str):
+        '''
+            Returns value of attribute attr of interface identified by ipv4 
+            (attr can be 'node_id', 'name', 'mac', 'dpid', 'port_name', 
+            or 'port_no'), None if it doesn't exist.
+        '''
+
+        return self._ips.get(ipv4, {}).get(attr, None)
 
     def get_links(self):
         '''
@@ -1293,9 +1314,9 @@ class Path(Model):
         timestamp: Path timestamp.
     '''
 
-    def __init__(self, req_id, src: str, attempt_no: int, host: str, 
-                 path: list, algorithm: str, bandwidths: list, delays: list, 
-                 jitters: list, loss_rates: list, weight_type: str, 
+    def __init__(self, req_id, src: str, attempt_no: int, host: str,
+                 path: list, algorithm: str, bandwidths: list, delays: list,
+                 jitters: list, loss_rates: list, weight_type: str,
                  weight: float, timestamp: float = 0):
         self.req_id = req_id
         self.src = src

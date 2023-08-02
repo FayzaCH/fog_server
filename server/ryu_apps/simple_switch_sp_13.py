@@ -114,7 +114,7 @@ class SimpleSwitchSP13(SimpleSwitch13):
                 # without having to recalculate path
                 if (src not in self._outs
                         or (src in self._outs and dst not in self._outs[src])):
-                    path = shortest_path(self._net, src, dst)
+                    path = shortest_path(self._net, src, dst, weight=None)
                     self._outs.setdefault(src, {})
                     self._outs[src].setdefault(dst, {})
                     for i in range(1, len(path) - 1):

@@ -82,6 +82,10 @@ class Topology(RyuApp, Topo):
         identified by mac (attr can be 'node_id', 'name', 'ipv4', 'dpid', 
         'port_name', or 'port_no').
 
+        get_by_ip(ipv4, attr): Returns value of attribute attr of interface 
+        identified by ipv4 (attr can be 'node_id', 'name', 'mac', 'dpid', 
+        'port_name', or 'port_no').
+
         get_links(): Returns nested dict of Link objects with source node ID 
         and destination node ID as keys.
 
@@ -169,6 +173,11 @@ class Topology(RyuApp, Topo):
         self._interfaces[mac]['dpid'] = port.dpid
         self._interfaces[mac]['port_name'] = port.name.decode()
         self._interfaces[mac]['port_no'] = port.port_no
+        for ipv4 in host.ipv4:
+            self._ips.setdefault(ipv4, {})
+            self._ips[ipv4]['dpid'] = port.dpid
+            self._ips[ipv4]['port_name'] = port.name.decode()
+            self._ips[ipv4]['port_no'] = port.port_no
 
     @set_ev_cls(EventHostDelete)
     def _host_delete_handler(self, ev):
