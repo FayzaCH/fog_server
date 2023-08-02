@@ -73,10 +73,11 @@ create table if not exists responses (
     src text not null,
   	attempt_no integer not null,
     host text not null,
+    algorithm text,
     cpu real,
     ram real,
     disk real,
-    algorithm text,
+    timestamp real,
 
     primary key (req_id, src, attempt_no, host),
 
@@ -97,16 +98,18 @@ create table if not exists paths (
 	req_id text not null,
     src text not null,
   	attempt_no integer not null,
+    host text not null,
     path text not null,
+    algorithm text,
     bandwidths text,
     delays text,
     jitters text,
     loss_rates text,
-    algorithm text,
     weight_type text,
     weight real,
+    timestamp real,
 
-    primary key (req_id, src, attempt_no, path),
+    primary key (req_id, src, attempt_no, host, path),
 
     constraint fk_req
     foreign key (req_id, src)  
@@ -115,4 +118,8 @@ create table if not exists paths (
     constraint fk_att
     foreign key (req_id, src, attempt_no)
     references attempts (req_id, src, attempt_no)
+
+    constraint fk_res
+    foreign key (req_id, src, attempt_no, host)
+    references responses (req_id, src, attempt_no, host)
 );

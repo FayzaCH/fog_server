@@ -16,6 +16,7 @@
 '''
 
 
+from time import time
 from logging import info, basicConfig, INFO
 
 from ryu.base.app_manager import RyuApp
@@ -31,40 +32,10 @@ from scapy.all import (Packet, ByteEnumField, StrLenField, IntEnumField,
                        Ether, IP)
 
 from model import CoS, Request, Response, Path
-from selection import (NodeSelector, PathSelector, NODE_ALGORITHMS,
-                       PATH_ALGORITHMS, PATH_WEIGHTS)
+from selection import NodeSelector, PathSelector
 from common import *
 import config
 
-
-# algorithms
-_node_algo = getenv('ORCHESTRATOR_NODE_ALGORITHM', None)
-if _node_algo not in NODE_ALGORITHMS:
-    _node_algo = list(NODE_ALGORITHMS.keys())[0]
-    print(' *** WARNING in protocol: '
-          'ORCHESTRATOR:NODE_ALGORITHM parameter invalid or missing from '
-          'conf.yml. '
-          'Defaulting to ' + _node_algo + '.')
-NODE_ALGO = _node_algo
-
-if not STP_ENABLED and ORCHESTRATOR_PATHS:
-    _path_algo = getenv('ORCHESTRATOR_PATH_ALGORITHM', None)
-    if _path_algo not in PATH_ALGORITHMS:
-        _path_algo = list(PATH_ALGORITHMS.keys())[0]
-        print(' *** WARNING in protocol: '
-              'ORCHESTRATOR:PATH_ALGORITHM parameter invalid or missing from '
-              'conf.yml. '
-              'Defaulting to ' + _path_algo + '.')
-    PATH_ALGO = _path_algo
-
-    _path_weight = getenv('ORCHESTRATOR_PATH_WEIGHT', None)
-    if _path_weight not in PATH_WEIGHTS[PATH_ALGO]:
-        _path_weight = PATH_WEIGHTS[PATH_ALGO][0]
-        print(' *** WARNING in protocol: '
-              'ORCHESTRATOR:PATH_WEIGHT parameter invalid or missing from '
-              'conf.yml. '
-              'Defaulting to ' + _path_weight + '.')
-    PATH_WEIGHT = _path_weight
 
 # protocol config
 try:
@@ -423,18 +394,20 @@ class Protocol(RyuApp):
 
     def _save_hosts(self, _req_id, attempt_no, hosts):
         src_ip, req_id = _req_id
+        timestamp = time()
         for host in hosts:
             try:
                 host_ip = host.main_interface.ipv4
-                Response(req_id, src_ip, attempt_no, host_ip,
+                Response(req_id, src_ip, attempt_no, host_ip, NODE_ALGO,
                          host.get_cpu_free(), host.get_memory_free(),
-                         host.get_disk_free(), NODE_ALGO).insert()
+                         host.get_disk_free(), timestamp).insert()
                 Response.as_csv()
             except:
                 pass
 
     def _save_paths(self, _req_id, attempt_no, paths, weights):
         src_ip, req_id = _req_id
+        timestamp = time()
         for host, _paths in paths.items():
             for idx, path in enumerate(_paths):
                 _path = [src_ip]
@@ -453,9 +426,9 @@ class Protocol(RyuApp):
                     delays.append(link.get_delay())
                     jitters.append(link.get_jitter())
                     loss_rates.append(link.get_loss_rate())
-                Path(req_id, src_ip, attempt_no, _path, bandwidths, delays,
-                     jitters, loss_rates, PATH_ALGO, PATH_WEIGHT,
-                     weights[host][idx]).insert()
+                Path(req_id, src_ip, attempt_no, host, _path, PATH_ALGO, 
+                     bandwidths, delays, jitters, loss_rates, PATH_WEIGHT, 
+                     weights[host][idx], timestamp).insert()
         Path.as_csv()
 
     @set_ev_cls(EventOFPPacketIn, MAIN_DISPATCHER)

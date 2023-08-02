@@ -328,14 +328,14 @@ def _adapt(obj: Model):
                 obj.state, obj.hreq_at, obj.hres_at, obj.rres_at, obj.dres_at)
 
     if obj.__class__.__name__ is Response.__name__:
-        return (obj.req_id, obj.src, obj.attempt_no, obj.host, obj.cpu,
-                obj.ram, obj.disk, obj.algorithm)
+        return (obj.req_id, obj.src, obj.attempt_no, obj.host, obj.algorithm,
+                obj.cpu, obj.ram, obj.disk, obj.timestamp)
 
     if obj.__class__.__name__ is Path.__name__:
-        return (obj.req_id, obj.src, obj.attempt_no, str(obj.path),
+        return (obj.req_id, obj.src, obj.attempt_no, obj.host, str(obj.path),
                 str(obj.bandwidths), str(obj.delays), str(obj.jitters),
                 str(obj.loss_rates), obj.algorithm, obj.weight_type,
-                obj.weight)
+                obj.weight, obj.timestamp)
 
 
 # decode table rows as objects
@@ -370,21 +370,29 @@ def _convert(itr: list, cls):
                 item[0], item[1], select(CoS, id=('=', item[2]))[0], item[3],
                 item[4], item[5], eval(item[6]), item[7], item[8], item[9], {
                     att.attempt_no: att
-                    for att in select(Attempt, req_id=('=', item[0]))
-                })
+                    for att in select(Attempt, req_id=('=', item[0]),
+                                      src=('=', item[1]))})
 
         if cls.__name__ is Attempt.__name__:
-            obj = Attempt(item[0], item[1], item[2], item[3], eval(item[4]),
-                          item[5], item[6], item[7], item[8], item[9])
+            obj = Attempt(
+                item[0], item[1], item[2], item[3], eval(item[4]), item[5],
+                item[6], item[7], item[8], item[9], {
+                    resp.host: resp
+                    for resp in select(Response, req_id=('=', item[0]),
+                                       src=('=', item[1]),
+                                       attempt_no=('=', item[2]))})
 
         if cls.__name__ is Response.__name__:
-            obj = Response(item[0], item[1], item[2], item[3], item[4],
-                           item[5], item[6], item[7])
+            obj = Response(
+                item[0], item[1], item[2], item[3], item[4], item[5], item[6],
+                item[7], item[8], [
+                    select(Path, req_id=('=', item[0]), src=('=', item[1]),
+                           attempt_no=('=', item[2]), host=('=', item[3]))])
 
         if cls.__name__ is Path.__name__:
-            obj = Path(item[0], item[1], item[2], eval(item[3]), eval(item[4]),
-                       eval(item[5]), eval(item[6]), eval(item[7]), item[8],
-                       item[9], item[10])
+            obj = Path(item[0], item[1], item[2], item[3], eval(item[4]),
+                       item[5], eval(item[6]), eval(item[7]), eval(item[8]),
+                       eval(item[9]), item[10], item[11], item[12])
 
         ret.append(obj)
     return ret
@@ -407,12 +415,13 @@ def _get_columns(cls):
                 'hreq_at', 'hres_at', 'rres_at', 'dres_at')
 
     if cls.__name__ is Response.__name__:
-        return ('req_id', 'src', 'attempt_no', 'host', 'cpu', 'ram', 'disk',
-                'algorithm')
+        return ('req_id', 'src', 'attempt_no', 'host', 'algorithm', 'cpu',
+                'ram', 'disk', 'timestamp')
 
     if cls.__name__ is Path.__name__:
-        return ('req_id', 'src', 'attempt_no', 'path', 'bandwidths', 'delays',
-                'jitters', 'loss_rates', 'algorithm', 'weight_type', 'weight')
+        return ('req_id', 'src', 'attempt_no', 'host', 'path', 'algorithm',
+                'bandwidths', 'delays', 'jitters', 'loss_rates', 'weight_type',
+                'weight', 'timestamp')
 
     return ()
 

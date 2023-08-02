@@ -1,4 +1,4 @@
-''' 
+'''
 ================
     REST API
 ================
@@ -15,7 +15,7 @@ GET /config
 
 2. Node REST API
 
-2.1. Add a node
+2.1. Add a node and its interfaces
 
 POST /node
 JSON request body: {
@@ -37,7 +37,7 @@ DELETE /node/{id}
 
 3. Specs REST API
 
-3.1. Update node specs
+3.1. Update node specs and its interfaces specs
 
 PUT /node_specs/{id}
 JSON request body: {
@@ -54,6 +54,39 @@ JSON request body: {
     }]
 }
 
+4. Request REST API
+
+4.1. Add a request, its attempts and its responses
+
+POST /request
+JSON request body: {
+  * 'id': <str>,
+  * 'src': <str>,
+  * 'cos_id': <int>,
+  * 'data': <str>, # will be encoded to bytes
+  * 'result': <str>, # will be encoded to bytes
+  * 'host': <str>,
+  * 'state': <int>,
+  * 'hreq_at': <float>,
+  * 'dres_at': <float>,
+  * 'attempts': [{
+      * 'attempt_no': <int>,
+      * 'host': <str>,
+      * 'state': <int>,
+      * 'hreq_at': <float>,
+      * 'hres_at': <float>,
+        'rres_at': <float>,
+      * 'dres_at': <float>,
+        'responses: [{
+         ** host: <str>,
+         ** cpu: <float>,
+         ** ram: <float>,
+         ** disk: <float>,
+         ** timestamp: <float>
+        }]
+    }]
+}
+
 ================
 '''
 
@@ -62,18 +95,33 @@ from os import getenv
 from time import time
 from json import load
 
-from ryu.app.wsgi import route, Response, ControllerBase
+from ryu.app.wsgi import route, Response as HTTPResponse, ControllerBase
 
 from networkx import draw
 from matplotlib.pyplot import savefig, clf
 
-from model import NodeType
+from model import NodeType, Request, Attempt, Response, Path, CoS
 from ryu_apps.common import (DECOY_IP, DECOY_MAC, MONITOR_PERIOD,
-                             PROTO_SEND_TO, STP_ENABLED)
+                             PROTO_SEND_TO, STP_ENABLED, ORCHESTRATOR_PATHS)
 from ryu_apps.protocol import PROTO_RETRIES, PROTO_TIMEOUT
 from ryu_apps.topology import UDP_PORT, UDP_TIMEOUT
-from consts import ROOT_PATH
+from consts import ROOT_PATH, SEND_TO_ORCHESTRATOR
 import config
+
+
+node_algo = PROTO_SEND_TO
+path_algo = 'STP'
+path_weight = 'STP'
+if PROTO_SEND_TO == SEND_TO_ORCHESTRATOR:
+    from ryu_apps.common import NODE_ALGO
+    node_algo = NODE_ALGO
+    if not STP_ENABLED:
+        path_algo = 'SHORTEST'
+        path_weight = 'HOP'
+        if ORCHESTRATOR_PATHS:
+            from ryu_apps.common import PATH_ALGO, PATH_WEIGHT
+            path_algo = PATH_ALGO
+            path_weight = PATH_WEIGHT
 
 
 NETWORK_ADDRESS = getenv('NETWORK_ADDRESS', None)
@@ -123,7 +171,7 @@ HTTP_INTERNAL = 500
 
 class RyuMainAPI(ControllerBase):
     '''
-        Controller for RyuMain app that handles routing of, and responding 
+        Controller for RyuMain app that handles routing of, and responding
         to REST API requests.
     '''
 
@@ -137,7 +185,7 @@ class RyuMainAPI(ControllerBase):
 
     @route('config', '/config', methods=['GET'])
     def get_config(self, req):
-        return Response(content_type='application/json', json={
+        return HTTPResponse(content_type='application/json', json={
             'CONTROLLER_DECOY_MAC': DECOY_MAC,
             'CONTROLLER_DECOY_IP': DECOY_IP,
             'ORCHESTRATOR_UDP_PORT': UDP_PORT,
@@ -163,7 +211,7 @@ class RyuMainAPI(ControllerBase):
         try:
             # check if node already exists
             if self.ryu_main.topology.get_node(json['id']):
-                return Response(status=HTTP_EXISTS)
+                return HTTPResponse(status=HTTP_EXISTS)
 
             # check if required data fields available with correct types
             # and add function and kwargs to queue
@@ -206,12 +254,12 @@ class RyuMainAPI(ControllerBase):
 
         except (KeyError, TypeError, ValueError) as e:
             print(e)
-            return Response(str(e), status=HTTP_BAD_REQUEST)
+            return HTTPResponse(str(e), status=HTTP_BAD_REQUEST)
 
         except Exception as e:
             print(' *** ERROR in ryu_main_api.add_node:',
                   e.__class__.__name__, e)
-            return Response(status=HTTP_INTERNAL)
+            return HTTPResponse(status=HTTP_INTERNAL)
 
         # once POST data is parsed and validated, call functions in queue
         for func, kwargs in queue:
@@ -219,13 +267,13 @@ class RyuMainAPI(ControllerBase):
                 # if error, undo everything by deleting node
                 # this will also delete interfaces and links
                 self.ryu_main.topology.delete_node(json['id'])
-                return Response(status=HTTP_INTERNAL)
+                return HTTPResponse(status=HTTP_INTERNAL)
 
     @route('node', '/node/{id}', methods=['DELETE'])
     def delete_node(self, _, id):
         self.ryu_main.topology.delete_node(id)
 
-    @route('ryu_main', '/node_specs/{id}', methods=['PUT'])
+    @route('node_specs', '/node_specs/{id}', methods=['PUT'])
     def update_node_specs(self, req, id):
         # check if resource exists
         #  could be a host
@@ -235,9 +283,9 @@ class RyuMainAPI(ControllerBase):
                 # (id is dpid but converted from hexadecimal to decimal)
                 id = int(id, 16)
             except (TypeError, ValueError):
-                return Response(status=HTTP_NOT_FOUND)
+                return HTTPResponse(status=HTTP_NOT_FOUND)
             if not self.ryu_main.topology.get_node(id):
-                return Response(status=HTTP_NOT_FOUND)
+                return HTTPResponse(status=HTTP_NOT_FOUND)
 
         # queue for functions to be called after PUT data validation
         #  structure: [(func, kwargs), ...]
@@ -292,11 +340,59 @@ class RyuMainAPI(ControllerBase):
                             'rx_packets' in interface) else None
 
         except (KeyError, TypeError, ValueError):
-            return Response(status=HTTP_BAD_REQUEST)
+            return HTTPResponse(status=HTTP_BAD_REQUEST)
 
         # once PUT data is parsed and validated, call functions in queue
         for func, kwargs in queue:
             func(**kwargs)
+
+    @route('request', '/request', methods=['POST'])
+    def add_request(self, req):
+        try:
+            json = req.json
+            req_id = str(json['id'])
+            src = str(json['src'])
+            if STP_ENABLED:
+                # TODO path is STP path
+                pass
+            else:
+                if ORCHESTRATOR_PATHS:
+                    # TODO paths are from protocol
+                    pass
+                else:
+                    # TODO path is from simple_switch_sp_13
+                    pass
+            Request(req_id, src, CoS.select(id=('=', int(json['cos_id'])))[0],
+                    str(json['data']).encode(), str(json['result']).encode(),
+                    str(json['host']), None, int(json['state']),
+                    float(json['hreq_at']), float(json['dres_at'])).insert()
+            for attempt in json['attempts']:
+                attempt_no = int(attempt['attempt_no'])
+                if PROTO_SEND_TO == SEND_TO_ORCHESTRATOR:
+                    # TODO rres_at is from protocol
+                    rres_at = None
+                else:
+                    rres_at = float(attempt['rres_at'])
+                Attempt(req_id, src, attempt_no, str(attempt['host']), None,
+                        int(attempt['state']), float(attempt['hreq_at']),
+                        float(attempt['hres_at']), rres_at,
+                        float(attempt['dres_at'])).insert()
+                if 'responses' in attempt:
+                    for response in attempt['responses']:
+                        host = str(response['host'])
+                        Response(req_id, src, attempt_no, host, node_algo,
+                                 float(response['cpu']),
+                                 float(response['ram']),
+                                 float(response['disk']),
+                                 float(response['timestamp'])).insert()
+
+        except (KeyError, TypeError, ValueError) as e:
+            print(e.__class__.__name__, e)
+            return HTTPResponse(status=HTTP_BAD_REQUEST)
+
+        Request.as_csv()
+        Attempt.as_csv()
+        Response.as_csv()
 
     # for testing
     @route('test', '/topology_png')

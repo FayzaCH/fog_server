@@ -1081,9 +1081,7 @@ class Request(Model):
         self.state = state
         self.hreq_at = hreq_at
         self.dres_at = dres_at
-        if not attempts:
-            attempts = {}
-        self.attempts = attempts
+        self.attempts = attempts if attempts != None else {}
         self._attempt_no = 0
         self._late = False
         self._host_mac_ip = None
@@ -1198,12 +1196,14 @@ class Attempt(Model):
         rres_at: Resource reservation response timestamp (intermediate step).
 
         dres_at: Data exchange response timestamp (end of operation).
+
+        responses: Dict of attempt Responses (keys are responding hosts IPs).
     '''
 
     def __init__(self, req_id, src: str, attempt_no: int, host: str = None,
                  path: list = None, state: int = None, hreq_at: float = None,
                  hres_at: float = None, rres_at: float = None,
-                 dres_at: float = None):
+                 dres_at: float = None, responses: dict = None):
         self.req_id = req_id
         self.src = src
         self.attempt_no = attempt_no
@@ -1214,6 +1214,7 @@ class Attempt(Model):
         self.hres_at = hres_at
         self.rres_at = rres_at
         self.dres_at = dres_at
+        self.responses = responses if responses != None else {}
 
 
 class Response(Model):
@@ -1230,25 +1231,32 @@ class Response(Model):
 
         host: Network application host IP address.
 
+        algorithm: Node selection algorithm used (SIMPLE, etc.).
+
         cpu: Amount of CPU offered by host.
 
         ram: RAM size offered by host.
 
         disk: Disk size offered by host.
 
-        algorithm: Node selection algorithm used (SIMPLE, etc.).
+        timestamp: Response timestamp.
+
+        paths: List of attempt Paths.
     '''
 
     def __init__(self, req_id, src: str, attempt_no: int, host: str,
-                 cpu: float, ram: float, disk: float, algorithm: str):
+                 algorithm: str, cpu: float, ram: float, disk: float,
+                 timestamp: float = 0, paths: list = None):
         self.req_id = req_id
         self.src = src
         self.attempt_no = attempt_no
         self.host = host
+        self.algorithm = algorithm
         self.cpu = cpu
         self.ram = ram
         self.disk = disk
-        self.algorithm = algorithm
+        self.timestamp = timestamp if timestamp else time()
+        self.paths = paths if paths != None else []
 
 
 class Path(Model):
@@ -1263,7 +1271,11 @@ class Path(Model):
 
         attempt_no: Attempt number.
 
+        host: Network application host IP address.
+
         path: Path to network application host.
+
+        algorithm: Path selection algorithm used (DIJKSTRA, LEASTCOST, etc.)
 
         bandwidths: List of path links bandwidths (in Mbps).
 
@@ -1274,25 +1286,27 @@ class Path(Model):
         loss_rates: List of path links loss rates (gross values; to get 
         percentages, multiply by 100).
 
-        algorithm: Path selection algorithm used (DIJKSTRA, LEASTCOST, etc.)
-
         weight_type: Path weight type (HOP, DELAY, COST, etc.).
 
         weight: Path weight value.
+
+        timestamp: Path timestamp.
     '''
 
-    def __init__(self, req_id, src: str, attempt_no: int, path: list,
-                 bandwidths: list, delays: list, jitters: list,
-                 loss_rates: list, algorithm: str, weight_type: str,
-                 weight: float):
+    def __init__(self, req_id, src: str, attempt_no: int, host: str, 
+                 path: list, algorithm: str, bandwidths: list, delays: list, 
+                 jitters: list, loss_rates: list, weight_type: str, 
+                 weight: float, timestamp: float = 0):
         self.req_id = req_id
         self.src = src
         self.attempt_no = attempt_no
+        self.host = host
         self.path = path
+        self.algorithm = algorithm
         self.bandwidths = bandwidths
         self.delays = delays
         self.jitters = jitters
         self.loss_rates = loss_rates
-        self.algorithm = algorithm
         self.weight_type = weight_type
         self.weight = weight
+        self.timestamp = timestamp if timestamp else time()

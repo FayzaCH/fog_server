@@ -3,6 +3,7 @@ from os import getenv
 from ryu.base.app_manager import lookup_service_brick
 from ryu.lib.hub import sleep
 
+from selection import NODE_ALGORITHMS, PATH_ALGORITHMS, PATH_WEIGHTS
 from consts import *
 import config
 
@@ -75,6 +76,36 @@ if (_proto_send_to == None
           'Defaulting to ' + SEND_TO_NONE + ' (protocol will not be used).')
     _proto_send_to = SEND_TO_NONE
 PROTO_SEND_TO = _proto_send_to
+
+# algorithms
+if PROTO_SEND_TO == SEND_TO_ORCHESTRATOR:
+    _node_algo = getenv('ORCHESTRATOR_NODE_ALGORITHM', None)
+    if _node_algo not in NODE_ALGORITHMS:
+        _node_algo = list(NODE_ALGORITHMS.keys())[0]
+        print(' *** WARNING in common: '
+              'ORCHESTRATOR:NODE_ALGORITHM parameter invalid or missing from '
+              'conf.yml. '
+              'Defaulting to ' + _node_algo + '.')
+    NODE_ALGO = _node_algo
+
+    if not STP_ENABLED and ORCHESTRATOR_PATHS:
+        _path_algo = getenv('ORCHESTRATOR_PATH_ALGORITHM', None)
+        if _path_algo not in PATH_ALGORITHMS:
+            _path_algo = list(PATH_ALGORITHMS.keys())[0]
+            print(' *** WARNING in common: '
+                  'ORCHESTRATOR:PATH_ALGORITHM parameter invalid or missing from '
+                  'conf.yml. '
+                  'Defaulting to ' + _path_algo + '.')
+        PATH_ALGO = _path_algo
+
+        _path_weight = getenv('ORCHESTRATOR_PATH_WEIGHT', None)
+        if _path_weight not in PATH_WEIGHTS[PATH_ALGO]:
+            _path_weight = PATH_WEIGHTS[PATH_ALGO][0]
+            print(' *** WARNING in common: '
+                  'ORCHESTRATOR:PATH_WEIGHT parameter invalid or missing from '
+                  'conf.yml. '
+                  'Defaulting to ' + _path_weight + '.')
+        PATH_WEIGHT = _path_weight
 
 try:
     MONITOR_PERIOD = float(getenv('MONITOR_PERIOD', None))
