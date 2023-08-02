@@ -320,11 +320,17 @@ def _adapt(obj: Model):
                 src = src.main_interface.ipv4
             except:
                 src = ''
+        path = None
+        if obj.path:
+            path = str(obj.path)
         return (obj.id, src, obj.cos.id, obj.data, obj.result, obj.host,
-                str(obj.path), obj.state, obj.hreq_at, obj.dres_at)
+                path, obj.state, obj.hreq_at, obj.dres_at)
 
     if obj.__class__.__name__ is Attempt.__name__:
-        return (obj.req_id, obj.src, obj.attempt_no, obj.host, str(obj.path),
+        path = None
+        if obj.path:
+            path = str(obj.path)
+        return (obj.req_id, obj.src, obj.attempt_no, obj.host, path,
                 obj.state, obj.hreq_at, obj.hres_at, obj.rres_at, obj.dres_at)
 
     if obj.__class__.__name__ is Response.__name__:
@@ -332,10 +338,24 @@ def _adapt(obj: Model):
                 obj.cpu, obj.ram, obj.disk, obj.timestamp)
 
     if obj.__class__.__name__ is Path.__name__:
-        return (obj.req_id, obj.src, obj.attempt_no, obj.host, str(obj.path),
-                str(obj.bandwidths), str(obj.delays), str(obj.jitters),
-                str(obj.loss_rates), obj.algorithm, obj.weight_type,
-                obj.weight, obj.timestamp)
+        path = None
+        if obj.path:
+            path = str(obj.path)
+        bandwidths = None
+        if obj.bandwidths:
+            bandwidths = str(obj.bandwidths)
+        delays = None
+        if obj.delays:
+            delays = str(obj.delays)
+        jitters = None
+        if obj.jitters:
+            jitters = str(obj.jitters)
+        loss_rates = None
+        if obj.loss_rates:
+            loss_rates = str(obj.loss_rates)
+        return (obj.req_id, obj.src, obj.attempt_no, obj.host, path,
+                bandwidths, delays, jitters, loss_rates, obj.algorithm,
+                obj.weight_type, obj.weight, obj.timestamp)
 
 
 # decode table rows as objects

@@ -63,20 +63,20 @@ JSON request body: {
   * 'id': <str>,
   * 'src': <str>,
   * 'cos_id': <int>,
-  * 'data': <str>, # will be encoded to bytes
-  * 'result': <str>, # will be encoded to bytes
+  * 'data': <bytes>,
+    'result': <bytes>,
   * 'host': <str>,
   * 'state': <int>,
   * 'hreq_at': <float>,
-  * 'dres_at': <float>,
+    'dres_at': <float>,
   * 'attempts': [{
       * 'attempt_no': <int>,
       * 'host': <str>,
       * 'state': <int>,
       * 'hreq_at': <float>,
-      * 'hres_at': <float>,
+        'hres_at': <float>,
         'rres_at': <float>,
-      * 'dres_at': <float>,
+        'dres_at': <float>,
         'responses: [{
          ** host: <str>,
          ** cpu: <float>,
@@ -352,6 +352,18 @@ class RyuMainAPI(ControllerBase):
             json = req.json
             req_id = str(json['id'])
             src = str(json['src'])
+            try:
+                result = json['result'].encode()
+            except:
+                result = None
+            try:
+                host = json['host'].encode()
+            except:
+                host = None
+            try:
+                dres_at = float(json['dres_at'])
+            except:
+                dres_at = None
             if STP_ENABLED:
                 # TODO path is STP path
                 pass
@@ -363,20 +375,33 @@ class RyuMainAPI(ControllerBase):
                     # TODO path is from simple_switch_sp_13
                     pass
             Request(req_id, src, CoS.select(id=('=', int(json['cos_id'])))[0],
-                    str(json['data']).encode(), str(json['result']).encode(),
-                    str(json['host']), None, int(json['state']),
-                    float(json['hreq_at']), float(json['dres_at'])).insert()
+                    str(json['data']).encode(), result, host, None,
+                    int(json['state']), float(json['hreq_at']), dres_at).insert()
             for attempt in json['attempts']:
                 attempt_no = int(attempt['attempt_no'])
+                try:
+                    host = attempt['host'].encode()
+                except:
+                    host = None
+                try:
+                    hres_at = float(attempt['hres_at'])
+                except:
+                    hres_at = None
                 if PROTO_SEND_TO == SEND_TO_ORCHESTRATOR:
                     # TODO rres_at is from protocol
                     rres_at = None
                 else:
-                    rres_at = float(attempt['rres_at'])
-                Attempt(req_id, src, attempt_no, str(attempt['host']), None,
+                    try:
+                        rres_at = float(attempt['rres_at'])
+                    except:
+                        rres_at = None
+                try:
+                    dres_at = float(attempt['dres_at'])
+                except:
+                    dres_at = None
+                Attempt(req_id, src, attempt_no, host, None,
                         int(attempt['state']), float(attempt['hreq_at']),
-                        float(attempt['hres_at']), rres_at,
-                        float(attempt['dres_at'])).insert()
+                        hres_at, rres_at, dres_at).insert()
                 if 'responses' in attempt:
                     for response in attempt['responses']:
                         host = str(response['host'])
