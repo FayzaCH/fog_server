@@ -185,9 +185,7 @@ class Topology(RyuApp, Topo):
 
     @set_ev_cls(EventHostMove)
     def _host_move_handler(self, ev):
-        self._host_delete_handler(ev)
-        self._host_add_handler(ev)
-        # TODO handle host move properly
+        pass
 
     def _add_host_links(self):
         while True:

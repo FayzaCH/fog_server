@@ -102,25 +102,12 @@ from matplotlib.pyplot import savefig, clf
 
 from model import NodeType, Request, Attempt, Response, Path, CoS
 from ryu_apps.common import (DECOY_IP, DECOY_MAC, MONITOR_PERIOD,
-                             PROTO_SEND_TO, STP_ENABLED, ORCHESTRATOR_PATHS)
+                             PROTO_SEND_TO, STP_ENABLED, ORCHESTRATOR_PATHS,
+                             NODE_ALGO, PATH_ALGO, PATH_WEIGHT, get_path)
 from ryu_apps.protocol import PROTO_RETRIES, PROTO_TIMEOUT
 from ryu_apps.topology import UDP_PORT, UDP_TIMEOUT
 from consts import ROOT_PATH, SEND_TO_ORCHESTRATOR
 import config
-
-
-node_algo = PROTO_SEND_TO
-path_algo = 'STP'
-path_weight = None
-if PROTO_SEND_TO == SEND_TO_ORCHESTRATOR:
-    from ryu_apps.common import NODE_ALGO
-    node_algo = NODE_ALGO
-    if not STP_ENABLED:
-        path_algo = 'SHORTEST'
-        if ORCHESTRATOR_PATHS:
-            from ryu_apps.common import PATH_ALGO, PATH_WEIGHT
-            path_algo = PATH_ALGO
-            path_weight = PATH_WEIGHT
 
 
 NETWORK_ADDRESS = getenv('NETWORK_ADDRESS', None)
@@ -366,7 +353,7 @@ class RyuMainAPI(ControllerBase):
                 dres_at = None
             Request(req_id, src, CoS.select(id=('=', int(json['cos_id'])))[0],
                     str(json['data']).encode(), result, req_host,
-                    self._get_path(src, req_host), int(json['state']),
+                    self._get_path(src, req_host, req_id), int(json['state']),
                     float(json['hreq_at']), dres_at).insert()
             for attempt in json['attempts']:
                 attempt_no = int(attempt['attempt_no'])
@@ -376,8 +363,11 @@ class RyuMainAPI(ControllerBase):
                 except:
                     hres_at = None
                 if PROTO_SEND_TO == SEND_TO_ORCHESTRATOR:
-                    # TODO rres_at is from protocol
-                    rres_at = None
+                    try:
+                        rres_at = self.ryu_main.protocol.requests[
+                            (src, req_id)].attempts[attempt_no].rres_at
+                    except:
+                        rres_at = None
                 else:
                     try:
                         rres_at = float(attempt['rres_at'])
@@ -388,12 +378,13 @@ class RyuMainAPI(ControllerBase):
                 except:
                     dres_at = None
                 Attempt(req_id, src, attempt_no, att_host,
-                        self._get_path(src, att_host), int(attempt['state']),
-                        float(attempt['hreq_at']), hres_at, rres_at, dres_at).insert()
+                        self._get_path(src, att_host, req_id, attempt_no),
+                        int(attempt['state']), float(attempt['hreq_at']),
+                        hres_at, rres_at, dres_at).insert()
                 if 'responses' in attempt:
                     for response in attempt['responses']:
                         res_host = str(response['host'])
-                        Response(req_id, src, attempt_no, res_host, node_algo,
+                        Response(req_id, src, attempt_no, res_host, NODE_ALGO,
                                  float(response['cpu']),
                                  float(response['ram']),
                                  float(response['disk']),
@@ -401,8 +392,8 @@ class RyuMainAPI(ControllerBase):
                         path, bws, dels, jits, loss, ts = self._get_path(
                             src, res_host, specs=True)
                         Path(req_id, src, attempt_no, res_host,
-                             path, path_algo, bws, dels, jits, loss,
-                             path_weight, None, ts).insert()
+                             path, PATH_ALGO, bws, dels, jits, loss,
+                             PATH_WEIGHT, None, ts).insert()
 
         except (KeyError, TypeError, ValueError) as e:
             print(e.__class__.__name__, e)
@@ -452,8 +443,10 @@ class RyuMainAPI(ControllerBase):
             kwargs.get('rx_packets', None),
             kwargs.get('timestamp', time()))
 
-    def _get_path(self, src_ip, dst_ip, specs: bool = False):
+    def _get_path(self, src_ip: str, dst_ip: str, req_id: str = None,
+                  attempt_no: int = None, specs: bool = False):
         try:
+            path = []
             if STP_ENABLED or not ORCHESTRATOR_PATHS:
                 # if STP enabled
                 #   only one path, shortest path
@@ -464,36 +457,18 @@ class RyuMainAPI(ControllerBase):
                 if src in graph.nodes:
                     dst = self._topology.get_by_ip(dst_ip, 'node_id')
                     if dst in graph.nodes:
-                        path_ = shortest_path(graph, src, dst, weight=None)
-                        path = [self._topology.get_link(
-                            path_[0], path_[1]).src_port.ipv4]
-                        if specs:
-                            bandwidths = []
-                            delays = []
-                            jitters = []
-                            loss_rates = []
-                            timestamp = time()
-                        len_path = len(path_)
-                        for i in range(1, len_path):
-                            if i < len_path - 1:
-                                path.append(f'{path_[i]:x}')
-                            link = self._topology.get_link(
-                                path_[i-1], path_[i])
-                            if i == len_path - 1:
-                                path.append(link.dst_port.ipv4)
-                            if specs:
-                                bandwidths.append(link.get_bandwidth())
-                                delays.append(link.get_delay())
-                                jitters.append(link.get_jitter())
-                                loss_rates.append(link.get_loss_rate())
-                        if specs:
-                            return path, bandwidths, delays, jitters, loss_rates, timestamp
-                        return path
+                        path = shortest_path(graph, src, dst, weight=None)
             else:
-                # TODO
                 # if STP disabled and orchestrator paths enabled
                 # path is from protocol
-                pass
+                if req_id and not attempt_no:
+                    path = self.ryu_main.protocol.requests[(
+                        src_ip, req_id)].path
+                if req_id and attempt_no:
+                    path = self.ryu_main.protocol.requests[(
+                        src_ip, req_id)].attempts[attempt_no].path
+            if path:
+                return get_path(path, specs)
         except Exception as e:
             print(' *** ERROR in ryu_main_api._get_path: ',
                   e.__class__.__name__, e)

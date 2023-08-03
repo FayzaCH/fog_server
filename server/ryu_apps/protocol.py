@@ -31,7 +31,9 @@ from scapy.all import (Packet, ByteEnumField, StrLenField, IntEnumField,
                        StrField, IntField, ConditionalField, bind_layers,
                        Ether, IP)
 
-from model import CoS, Request, Response, Path
+from networkx import shortest_path
+
+from model import CoS, Request, Attempt, Response, Path
 from selection import NodeSelector, PathSelector
 from common import *
 import config
@@ -64,9 +66,6 @@ if PROTO_VERBOSE:
 
 cos_dict = {cos.id: cos for cos in CoS.select()}
 cos_names = {id: cos.name for id, cos in cos_dict.items()}
-
-# dict of requests received by provider (keys are (src IP, request ID))
-_requests = {}
 
 # dict of resource reservation events (keys are ((src IP, request ID), host IP))
 _events = {}
@@ -228,11 +227,19 @@ class Protocol(RyuApp):
 
         SimpleSwitchSP13 app (if STP disabled and path selection enabled): 
         to stop installing default flows.
+
+        Attributes:
+        -----------
+        requests: dict of requests received by provider (keys are 
+        (src IP, request ID))
     '''
 
     def __init__(self, *args, **kwargs):
         super(Protocol, self).__init__(*args, **kwargs)
         self.name = PROTOCOL
+
+        # dict of requests received by provider (keys are (src IP, request ID))
+        self.requests = {}
 
         self._topology = get_app(TOPOLOGY)
         self._topology_state = get_app(TOPOLOGY_STATE)
@@ -299,7 +306,7 @@ class Protocol(RyuApp):
         return _responses[_key]
 
     def _select_host(self, my_proto, _req_id, eth_src, ip_src):
-        req = _requests[_req_id]
+        req = self.requests[_req_id]
         # to keep track of all possible hosts
         # the default strategy ALL is applied
         # the hosts are then tried first (in list) to last
@@ -361,6 +368,9 @@ class Protocol(RyuApp):
                                 # stop installing default flows
                                 self._simple_switch_sp_13._paths.add((eth_src,
                                                                       host_mac))
+                                # save paths for logging
+                                req.path = path
+                                req.attempts[my_proto.attempt_no].path = path
                                 return
                             if rres[MyProtocol].state == RCAN:
                                 continue
@@ -384,7 +394,6 @@ class Protocol(RyuApp):
                                           / my_proto, host_mac, _req_id)
                     if rres:
                         if rres[MyProtocol].state == RRES:
-                            # TODO update selected path in db/csv
                             return
                         if rres[MyProtocol].state == RCAN:
                             continue
@@ -396,40 +405,33 @@ class Protocol(RyuApp):
         src_ip, req_id = _req_id
         timestamp = time()
         for host in hosts:
-            try:
-                host_ip = host.main_interface.ipv4
-                Response(req_id, src_ip, attempt_no, host_ip, NODE_ALGO,
-                         host.get_cpu_free(), host.get_memory_free(),
-                         host.get_disk_free(), timestamp).insert()
-                Response.as_csv()
-            except:
-                pass
+            host_ip = host.main_interface.ipv4
+            Response(req_id, src_ip, attempt_no, host_ip, NODE_ALGO,
+                     host.get_cpu_free(), host.get_memory_free(),
+                     host.get_disk_free(), timestamp).insert()
+            Response.as_csv()
+            if STP_ENABLED or not ORCHESTRATOR_PATHS:
+                graph = self._topology.get_graph()
+                src = self._topology.get_by_ip(src_ip, 'node_id')
+                if src in graph.nodes:
+                    dst = self._topology.get_by_ip(host_ip, 'node_id')
+                    if dst in graph.nodes:
+                        path = shortest_path(graph, src, dst, weight=None)
+                        _path, bws, dels, jits, loss, ts = get_path(
+                            path, True)
+                        Path(req_id, src_ip, attempt_no, host_ip, _path,
+                             PATH_ALGO, bws, dels, jits, loss, PATH_WEIGHT,
+                             None, ts).insert()
+                Path.as_csv()
 
     def _save_paths(self, _req_id, attempt_no, paths, weights):
         src_ip, req_id = _req_id
-        timestamp = time()
         for host, _paths in paths.items():
             for idx, path in enumerate(_paths):
-                _path = [self._topology.get_link(
-                    path[0], path[1]).src_port.ipv4]
-                bandwidths = []
-                delays = []
-                jitters = []
-                loss_rates = []
-                len_path = len(path)
-                for i in range(1, len_path):
-                    if i < len_path - 1:
-                        _path.append(f'{path[i]:x}')
-                    link = self._topology.get_link(path[i-1], path[i])
-                    if i == len_path - 1:
-                        _path.append(link.dst_port.ipv4)
-                    bandwidths.append(link.get_bandwidth())
-                    delays.append(link.get_delay())
-                    jitters.append(link.get_jitter())
-                    loss_rates.append(link.get_loss_rate())
+                _path, bws, dels, jits, loss, ts = get_path(path, True)
                 Path(req_id, src_ip, attempt_no, host, _path, PATH_ALGO,
-                     bandwidths, delays, jitters, loss_rates, PATH_WEIGHT,
-                     weights[host][idx], timestamp).insert()
+                     bws, dels, jits, loss, PATH_WEIGHT, weights[host][idx],
+                     ts).insert()
         Path.as_csv()
 
     @set_ev_cls(EventOFPPacketIn, MAIN_DISPATCHER)
@@ -446,34 +448,38 @@ class Protocol(RyuApp):
             # controller receives host request
             if state == HREQ:
                 # if new request
-                if _req_id not in _requests:
-                    _requests[_req_id] = Request(
+                if _req_id not in self.requests:
+                    self.requests[_req_id] = Request(
                         req_id, self._topology.get_node(
                             self._topology.get_by_mac(eth_src, 'node_id')),
                         None, None, state=HREQ)
+                _req = self.requests[_req_id]
                 # if not processed yet
-                if (_requests[_req_id].state == HREQ
-                        or _requests[_req_id].state == HRES):
+                if (_req.state == HREQ
+                        or _req.state == HRES):
                     info('Recv host request from %s' % ip_src)
                     my_proto.show()
                     # set cos (for new requests and in case CoS was changed
                     # from old request)
-                    _requests[_req_id].cos = cos_dict[my_proto.cos_id]
-                    _requests[_req_id].state = RREQ
-                    _requests[_req_id].host = None
-                    _requests[_req_id]._host_mac_ip = None
+                    _req.cos = cos_dict[my_proto.cos_id]
+                    _req.state = RREQ
+                    _req.host = None
+                    _req._host_mac_ip = None
+                    _req.attempts[my_proto.attempt_no] = Attempt(
+                        req_id, ip_src, my_proto.attempt_no)
                     spawn(self._select_host,
                           my_proto, _req_id, eth_src, ip_src)
                 return
 
             # controller receives resource reservation response
             if state == RRES:
+                rres_at = time()
                 src_ip = my_proto.src_ip.decode().strip()
                 _req_id = (src_ip, req_id)
-                if _req_id in _requests:
+                if _req_id in self.requests:
                     # if late rres from previous host
-                    if _requests[_req_id].host:
-                        if _requests[_req_id]._host_mac_ip != (eth_src, ip_src):
+                    if self.requests[_req_id].host:
+                        if self.requests[_req_id]._host_mac_ip != (eth_src, ip_src):
                             info(
                                 'Recv late resource reservation response from %s' % ip_src)
                             my_proto.show()
@@ -486,9 +492,10 @@ class Protocol(RyuApp):
                                         / my_proto, eth_src)
                             return
                     # if regular rres
-                    elif _requests[_req_id].state == RREQ:
-                        _requests[_req_id].state = HRES
-                        _requests[_req_id]._host_mac_ip = (eth_src, ip_src)
+                    elif self.requests[_req_id].state == RREQ:
+                        self.requests[_req_id].state = HRES
+                        self.requests[_req_id].attempts[my_proto.attempt_no].rres_at = rres_at
+                        self.requests[_req_id]._host_mac_ip = (eth_src, ip_src)
                         info('Recv resource reservation response from %s' % ip_src)
                         my_proto.show()
                         _key = (_req_id, eth_src)
@@ -499,7 +506,7 @@ class Protocol(RyuApp):
                         # the node in case it no longer has resources)
                         host_id = self._topology.get_by_mac(eth_src, 'node_id')
                         host = self._topology.get_node(host_id)
-                        cos = _requests[_req_id].cos
+                        cos = self.requests[_req_id].cos
                         self._topology_state.update_node_specs(
                             host_id,
                             host.get_cpu_free() - cos.get_min_cpu(),
@@ -526,9 +533,9 @@ class Protocol(RyuApp):
             if state == RCAN:
                 src_ip = my_proto.src_ip.decode().strip()
                 _req_id = (src_ip, req_id)
-                if (_req_id in _requests and _requests[_req_id].state == RREQ
-                        and (not _requests[_req_id].host
-                             or _requests[_req_id]._host_mac_ip == (eth_src, ip_src))):
+                if (_req_id in self.requests and self.requests[_req_id].state == RREQ
+                        and (not self.requests[_req_id].host
+                             or self.requests[_req_id]._host_mac_ip == (eth_src, ip_src))):
                     info('Recv resource reservation cancellation from %s' % ip_src)
                     my_proto.show()
                     _key = (_req_id, eth_src)
@@ -537,7 +544,7 @@ class Protocol(RyuApp):
                         _events[_key].set()
                 return
 
-            if state == DACK and _req_id in _requests:
+            if state == DACK and _req_id in self.requests:
                 info('Recv data exchange acknowledgement from %s' % ip_src)
                 my_proto.src_mac = eth_src
                 my_proto.src_ip = ip_src.ljust(IP_LEN, ' ')
@@ -549,7 +556,7 @@ class Protocol(RyuApp):
                             / IP(src=DECOY_IP, dst=host_ip)
                             / my_proto, host_mac)
 
-            if state == DCAN and _req_id in _requests:
+            if state == DCAN and _req_id in self.requests:
                 info('Recv data exchange cancellation from %s' % ip_src)
                 my_proto.src_mac = eth_src
                 my_proto.src_ip = ip_src.ljust(IP_LEN, ' ')

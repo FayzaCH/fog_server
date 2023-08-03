@@ -689,14 +689,7 @@ class Topology(Model):
         '''
 
         try:
-            node = self.get_node(id)
-            if node:
-                for interface in list(node.interfaces.values()):
-                    self._interfaces.pop(interface.mac, None)
-                    self._ips.pop(interface.ipv4, None)
-
             self.get_graph().remove_node(id)
-
         except NetworkXError:
             pass
 
