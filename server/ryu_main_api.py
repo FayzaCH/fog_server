@@ -339,7 +339,6 @@ class RyuMainAPI(ControllerBase):
     def add_request(self, req):
         try:
             json = req.json
-            print(json)
             req_id = self._get_post(json, 'id', str, True)
             src = self._get_post(json, 'src', str, True)
             req_host = self._get_post(json, 'host')
