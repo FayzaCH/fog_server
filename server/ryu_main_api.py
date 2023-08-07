@@ -238,7 +238,7 @@ class RyuMainAPI(ControllerBase):
                 queue.append((self._set_main_interface, {
                     'node_id': id,
                     'main_interface':
-                        self._get_post(interface, 'main_interface', str),
+                        self._get_post(json, 'main_interface', str),
                 }))
 
         except (KeyError, TypeError, ValueError) as e:
