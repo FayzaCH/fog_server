@@ -1,21 +1,3 @@
-'''
-    Definition of the communication protocol between hosts and orchestrator
-    in ORCHESTRATOR mode, including the packets' header and the protocol's 
-    responder, using Ryu and the library Scapy.
-
-    Classes:
-    --------
-    MyProtocol: Class deriving from Scapy's Packet class to define the 
-    communication protocol between hosts and orchestrator in ORCHESTRATOR mode, 
-    including the packet header's fields, as well as ways to detect if a packet 
-    is an answer to another.
-
-    Protocol: Ryu app that defines the protocol's responder, which takes 
-    decisions and builds and sends replies to received packets based on the 
-    protocol's state.
-'''
-
-
 from time import time
 from logging import info, basicConfig, INFO
 
@@ -146,7 +128,7 @@ class MyProtocol(Packet):
         ByteEnumField('state', HREQ, _states),
         StrLenField('req_id', '', lambda _: REQ_ID_LEN),
         IntField('attempt_no', 1),
-        ConditionalField(IntEnumField('cos_id', 0, cos_names),
+        ConditionalField(IntEnumField('cos_id', 1, cos_names),
                          lambda pkt: pkt.state == HREQ or pkt.state == RREQ),
         ConditionalField(StrField('data', ''),
                          lambda pkt: pkt.state == DREQ or pkt.state == DRES),
@@ -175,11 +157,7 @@ class MyProtocol(Packet):
             return super().show()
 
     def hashret(self):
-        _suffix = b''
-        # if (self.state == RREQ or self.state == RRES or self.state == DACK
-        #        or self.state == DCAN):
-        #    _suffix = self.src_ip
-        return self.req_id + _suffix
+        return self.req_id
 
     def answers(self, other):
         if (isinstance(other, MyProtocol)
@@ -282,7 +260,146 @@ class Protocol(RyuApp):
                 and req[Ether].dst == DECOY_MAC
                 and req[IP].dst == DECOY_IP
                 # and must have an ID
-                and req[MyProtocol].req_id != b'')
+                and req[MyProtocol].req_id)
+
+    @set_ev_cls(EventOFPPacketIn, MAIN_DISPATCHER)
+    def _protocol_handler(self, ev):
+        req = Ether(ev.msg.data)
+        if self._is_request(req):
+            my_proto = req[MyProtocol]
+            eth_src = req[Ether].src
+            ip_src = req[IP].src
+            req_id = my_proto.req_id.decode()
+            _req_id = (ip_src, req_id)
+            state = my_proto.state
+            att_no = my_proto.attempt_no
+
+            _req = self.requests.get(_req_id, None)
+
+            # controller receives host request
+            if state == HREQ:
+                # if new request
+                if not _req:
+                    _req = Request(
+                        req_id, self._topology.get_node(
+                            self._topology.get_by_mac(eth_src, 'node_id')),
+                        None, None, state=HREQ)
+                    self.requests[_req_id] = _req
+                # if not processed yet
+                if _req.state == HREQ or _req.state == HRES:
+                    info('Recv host request from %s' % ip_src)
+                    my_proto.show()
+                    # set cos (for new requests and in case CoS was changed
+                    # from old request)
+                    _req.cos = cos_dict[my_proto.cos_id]
+                    _req.state = RREQ
+                    _req.host = None
+                    _req._host_mac_ip = None
+                    _req.attempts[att_no] = Attempt(req_id, ip_src, att_no)
+                    spawn(self._select_host,
+                          my_proto, _req_id, _req, eth_src, ip_src)
+                return
+
+            # controller receives resource reservation response
+            if state == RRES:
+                rres_at = time()
+                src_ip = my_proto.src_ip.decode().strip()
+                _req_id = (src_ip, req_id)
+                _req = self.requests.get(_req_id, None)
+                if _req:
+                    # if late rres from previous host
+                    if _req.host:
+                        if _req._host_mac_ip != (eth_src, ip_src):
+                            info('Recv late resource reservation response '
+                                 'from %s' % ip_src)
+                            my_proto.show()
+                            # cancel with previous host
+                            info('Send resource reservation cancellation '
+                                 'to %s' % ip_src)
+                            my_proto.state = RCAN
+                            self._sendp(Ether(src=DECOY_MAC, dst=eth_src)
+                                        / IP(src=DECOY_IP, dst=ip_src)
+                                        / my_proto, eth_src)
+                            return
+                    # if regular rres
+                    elif _req.state == RREQ:
+                        _req.state = HRES
+                        _req.attempts[att_no].rres_at = rres_at
+                        _req._host_mac_ip = (eth_src, ip_src)
+                        info('Recv resource reservation response '
+                             'from %s' % ip_src)
+                        my_proto.show()
+                        _key = (_req_id, eth_src)
+                        _responses[_key] = req
+                        if _key in _events:
+                            _events[_key].set()
+                        # update node specs (not necessary, just to eliminate
+                        # the node in case it no longer has resources)
+                        host_id = self._topology.get_by_mac(eth_src, 'node_id')
+                        host = self._topology.get_node(host_id)
+                        cos = self.requests[_req_id].cos
+                        self._topology_state.update_node_specs(
+                            host_id,
+                            host.get_cpu_free() - cos.get_min_cpu(),
+                            host.get_memory_free() - cos.get_min_ram(),
+                            host.get_disk_free() - cos.get_min_disk())
+                    info('Send resource reservation acknowledgement '
+                         'to %s' % ip_src)
+                    self._sendp(Ether(src=DECOY_MAC, dst=eth_src)
+                                / IP(src=DECOY_IP, dst=ip_src)
+                                / MyProtocol(req_id=req_id, state=RACK,
+                                             attempt_no=att_no,
+                                             src_mac=my_proto.src_mac,
+                                             src_ip=my_proto.src_ip), eth_src)
+                    info('Send host response to %s' % src_ip)
+                    dst_mac = my_proto.src_mac.decode()
+                    self._sendp(Ether(src=DECOY_MAC, dst=dst_mac)
+                                / IP(src=DECOY_IP, dst=src_ip)
+                                / MyProtocol(req_id=req_id, state=HRES,
+                                             attempt_no=att_no,
+                                             host_mac=eth_src,
+                                             host_ip=ip_src), dst_mac)
+                return
+
+            if state == RCAN:
+                src_ip = my_proto.src_ip.decode().strip()
+                _req_id = (src_ip, req_id)
+                _req = self.requests.get(_req_id, None)
+                if (_req and _req.state == RREQ
+                    and (not _req.host
+                         or _req._host_mac_ip == (eth_src, ip_src))):
+                    info('Recv resource reservation cancellation '
+                         'from %s' % ip_src)
+                    my_proto.show()
+                    _key = (_req_id, eth_src)
+                    _responses[_key] = req
+                    if _key in _events:
+                        _events[_key].set()
+                return
+
+            if state == DACK and _req:
+                info('Recv data exchange acknowledgement from %s' % ip_src)
+                my_proto.src_mac = eth_src
+                my_proto.src_ip = ip_src.ljust(IP_LEN, ' ')
+                my_proto.show()
+                host_mac = my_proto.host_mac.decode()
+                host_ip = my_proto.host_ip.decode().strip()
+                info('Send data exchange acknowledgement to %s' % host_ip)
+                self._sendp(Ether(src=DECOY_MAC, dst=host_mac)
+                            / IP(src=DECOY_IP, dst=host_ip)
+                            / my_proto, host_mac)
+
+            if state == DCAN and _req:
+                info('Recv data exchange cancellation from %s' % ip_src)
+                my_proto.src_mac = eth_src
+                my_proto.src_ip = ip_src.ljust(IP_LEN, ' ')
+                my_proto.show()
+                host_mac = my_proto.host_mac.decode()
+                host_ip = my_proto.host_ip.decode().strip()
+                info('Send data exchange cancellation to %s' % host_ip)
+                self._sendp(Ether(src=DECOY_MAC, dst=host_mac)
+                            / IP(src=DECOY_IP, dst=host_ip)
+                            / my_proto, host_mac)
 
     def _sendp(self, packet, eth_dst):
         datapath = self._switches.dps[self._topology.get_by_mac(eth_dst,
@@ -299,14 +416,14 @@ class Protocol(RyuApp):
     def _srp1(self, packet, eth_dst, _req_id):
         self._sendp(packet, eth_dst)
         _key = (_req_id, eth_dst)
-        _events[_key] = Event()
-        _events[_key].wait(PROTO_TIMEOUT)
-        if not _events[_key].is_set():
+        ev = Event()
+        _events[_key] = ev
+        ev.wait(PROTO_TIMEOUT)
+        if not ev.is_set():
             return None
         return _responses[_key]
 
-    def _select_host(self, my_proto, _req_id, eth_src, ip_src):
-        req = self.requests[_req_id]
+    def _select_host(self, my_proto, _req_id, req, eth_src, ip_src):
         # to keep track of all possible hosts
         # the default strategy ALL is applied
         # the hosts are then tried first (in list) to last
@@ -327,11 +444,11 @@ class Protocol(RyuApp):
                 if paths:
                     spawn(self._save_paths,
                           _req_id, my_proto.attempt_no, paths, weights)
-                    weights_idx = []
+                    w_idx = []
                     for target, _weights in weights.items():
                         for i, weight in enumerate(_weights):
-                            weights_idx.append((target, i, weight))
-                    for target, i, _ in sorted(weights_idx, key=lambda x: x[2]):
+                            w_idx.append((target, i, weight))
+                    for target, i, _ in sorted(w_idx, key=lambda x: x[2]):
                         info('Selecting host')
                         path = paths[target][i]
                         last_link = self._topology.get_link(path[-2], path[-1])
@@ -356,7 +473,8 @@ class Protocol(RyuApp):
                                 in_port = self._topology.get_by_mac(eth_src,
                                                                     'port_no')
                                 self._install_flows(
-                                    # switches only path (path minus src and dst)
+                                    # switches only path
+                                    # (path minus src and dst)
                                     path[1:-1],
                                     {
                                         'src_ip': ip_src,
@@ -366,8 +484,8 @@ class Protocol(RyuApp):
                                         'dst_mac': host_mac
                                     })
                                 # stop installing default flows
-                                self._simple_switch_sp_13._paths.add((eth_src,
-                                                                      host_mac))
+                                self._simple_switch_sp_13._paths.add(
+                                    (eth_src, host_mac))
                                 # save paths for logging
                                 req.path = path
                                 req.attempts[my_proto.attempt_no].path = path
@@ -385,7 +503,8 @@ class Protocol(RyuApp):
                     rreq_rt = PROTO_RETRIES
                     rres = None
                     while not rres and rreq_rt and req.state == RREQ:
-                        info('Send resource reservation request to %s' % host_ip)
+                        info('Send resource reservation request '
+                             'to %s' % host_ip)
                         info(req)
                         rreq_rt -= 1
                         # send and wait for positive response
@@ -433,141 +552,6 @@ class Protocol(RyuApp):
                      bws, dels, jits, loss, PATH_WEIGHT, weights[host][idx],
                      ts).insert()
         Path.as_csv()
-
-    @set_ev_cls(EventOFPPacketIn, MAIN_DISPATCHER)
-    def _protocol_handler(self, ev):
-        req = Ether(ev.msg.data)
-        if self._is_request(req):
-            my_proto = req[MyProtocol]
-            eth_src = req[Ether].src
-            ip_src = req[IP].src
-            req_id = my_proto.req_id.decode()
-            _req_id = (ip_src, req_id)
-            state = my_proto.state
-
-            # controller receives host request
-            if state == HREQ:
-                # if new request
-                if _req_id not in self.requests:
-                    self.requests[_req_id] = Request(
-                        req_id, self._topology.get_node(
-                            self._topology.get_by_mac(eth_src, 'node_id')),
-                        None, None, state=HREQ)
-                _req = self.requests[_req_id]
-                # if not processed yet
-                if (_req.state == HREQ
-                        or _req.state == HRES):
-                    info('Recv host request from %s' % ip_src)
-                    my_proto.show()
-                    # set cos (for new requests and in case CoS was changed
-                    # from old request)
-                    _req.cos = cos_dict[my_proto.cos_id]
-                    _req.state = RREQ
-                    _req.host = None
-                    _req._host_mac_ip = None
-                    _req.attempts[my_proto.attempt_no] = Attempt(
-                        req_id, ip_src, my_proto.attempt_no)
-                    spawn(self._select_host,
-                          my_proto, _req_id, eth_src, ip_src)
-                return
-
-            # controller receives resource reservation response
-            if state == RRES:
-                rres_at = time()
-                src_ip = my_proto.src_ip.decode().strip()
-                _req_id = (src_ip, req_id)
-                if _req_id in self.requests:
-                    # if late rres from previous host
-                    if self.requests[_req_id].host:
-                        if self.requests[_req_id]._host_mac_ip != (eth_src, ip_src):
-                            info(
-                                'Recv late resource reservation response from %s' % ip_src)
-                            my_proto.show()
-                            # cancel with previous host
-                            info(
-                                'Send resource reservation cancellation to %s' % ip_src)
-                            my_proto.state = RCAN
-                            self._sendp(Ether(src=DECOY_MAC, dst=eth_src)
-                                        / IP(src=DECOY_IP, dst=ip_src)
-                                        / my_proto, eth_src)
-                            return
-                    # if regular rres
-                    elif self.requests[_req_id].state == RREQ:
-                        self.requests[_req_id].state = HRES
-                        self.requests[_req_id].attempts[my_proto.attempt_no].rres_at = rres_at
-                        self.requests[_req_id]._host_mac_ip = (eth_src, ip_src)
-                        info('Recv resource reservation response from %s' % ip_src)
-                        my_proto.show()
-                        _key = (_req_id, eth_src)
-                        _responses[_key] = req
-                        if _key in _events:
-                            _events[_key].set()
-                        # update node specs (not necessary, just to eliminate
-                        # the node in case it no longer has resources)
-                        host_id = self._topology.get_by_mac(eth_src, 'node_id')
-                        host = self._topology.get_node(host_id)
-                        cos = self.requests[_req_id].cos
-                        self._topology_state.update_node_specs(
-                            host_id,
-                            host.get_cpu_free() - cos.get_min_cpu(),
-                            host.get_memory_free() - cos.get_min_ram(),
-                            host.get_disk_free() - cos.get_min_disk())
-                    info('Send resource reservation acknowledgement to %s' % ip_src)
-                    self._sendp(Ether(src=DECOY_MAC, dst=eth_src)
-                                / IP(src=DECOY_IP, dst=ip_src)
-                                / MyProtocol(req_id=req_id, state=RACK,
-                                             attempt_no=my_proto.attempt_no,
-                                             src_mac=my_proto.src_mac,
-                                             src_ip=my_proto.src_ip),
-                                eth_src)
-                    info('Send host response to %s' % src_ip)
-                    dst_mac = my_proto.src_mac.decode()
-                    self._sendp(Ether(src=DECOY_MAC, dst=dst_mac)
-                                / IP(src=DECOY_IP, dst=src_ip)
-                                / MyProtocol(req_id=req_id, state=HRES,
-                                             attempt_no=my_proto.attempt_no,
-                                             host_mac=eth_src,
-                                             host_ip=ip_src), dst_mac)
-                return
-
-            if state == RCAN:
-                src_ip = my_proto.src_ip.decode().strip()
-                _req_id = (src_ip, req_id)
-                if (_req_id in self.requests and self.requests[_req_id].state == RREQ
-                        and (not self.requests[_req_id].host
-                             or self.requests[_req_id]._host_mac_ip == (eth_src, ip_src))):
-                    info('Recv resource reservation cancellation from %s' % ip_src)
-                    my_proto.show()
-                    _key = (_req_id, eth_src)
-                    _responses[_key] = req
-                    if _key in _events:
-                        _events[_key].set()
-                return
-
-            if state == DACK and _req_id in self.requests:
-                info('Recv data exchange acknowledgement from %s' % ip_src)
-                my_proto.src_mac = eth_src
-                my_proto.src_ip = ip_src.ljust(IP_LEN, ' ')
-                my_proto.show()
-                host_mac = my_proto.host_mac.decode()
-                host_ip = my_proto.host_ip.decode().strip()
-                info('Send data exchange acknowledgement to %s' % host_ip)
-                self._sendp(Ether(src=DECOY_MAC, dst=host_mac)
-                            / IP(src=DECOY_IP, dst=host_ip)
-                            / my_proto, host_mac)
-
-            if state == DCAN and _req_id in self.requests:
-                info('Recv data exchange cancellation from %s' % ip_src)
-                my_proto.src_mac = eth_src
-                my_proto.src_ip = ip_src.ljust(IP_LEN, ' ')
-                my_proto.show()
-
-                host_mac = my_proto.host_mac.decode()
-                host_ip = my_proto.host_ip.decode().strip()
-                info('Send data exchange cancellation to %s' % host_ip)
-                self._sendp(Ether(src=DECOY_MAC, dst=host_mac)
-                            / IP(src=DECOY_IP, dst=host_ip)
-                            / my_proto, host_mac)
 
     # the following methods are inspired by
     # https://github.com/muzixing/ryu/blob/master/ryu/app/network_awareness/shortest_forwarding.py

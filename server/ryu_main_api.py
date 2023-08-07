@@ -474,8 +474,10 @@ class RyuMainAPI(ControllerBase):
                     path = self.ryu_main.protocol.requests[(
                         src_ip, req_id)].path
                 if req_id and attempt_no:
-                    path = self.ryu_main.protocol.requests[(
-                        src_ip, req_id)].attempts[attempt_no].path
+                    att = self.ryu_main.protocol.requests[(
+                        src_ip, req_id)].attempts.get(attempt_no, None)
+                    if att:
+                        path = att.path
             if path:
                 return get_path(path, specs)
         except Exception as e:
