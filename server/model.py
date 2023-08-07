@@ -681,6 +681,7 @@ class Topology(Model):
             threshold = 1
         node.threshold = threshold
         self.get_graph().add_node(id, node=node)
+        return True
 
     def delete_node(self, id):
         '''
@@ -692,7 +693,6 @@ class Topology(Model):
             self.get_graph().remove_node(id)
         except NetworkXError:
             pass
-
         self._src_port_to_dst.pop(id, None)
 
     def get_interface(self, node_id, ref) -> Interface:
@@ -787,10 +787,8 @@ class Topology(Model):
 
         try:
             self.get_graph().remove_edge(src_id, dst_id)
-
         except NetworkXError:
             pass
-
         self._src_port_to_dst.pop(src_id, None)
 
     def get_nodes(self, as_dict: bool = False):
@@ -884,6 +882,8 @@ class Topology(Model):
         node = self.get_node(node_id)
         if node:
             node.main_interface = node.interfaces.get(name, None)
+            return True
+        return False
 
 
 class CoSSpecs(Model):

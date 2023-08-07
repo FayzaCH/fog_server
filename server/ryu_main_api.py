@@ -43,10 +43,14 @@ PUT /node_specs/{id}
 JSON request body: {
     'timestamp': <float>,
     'cpu_count': <int>,
+    'cpu_free': <float>,
+    'memory_total': <float>,
     'memory_free': <float>,
+    'disk_total': <float>,
     'disk_free': <float>,
     'interfaces': [{
      ** 'name': <str>,
+        'capacity': <float>,
         'bandwidth_up': <float>,
         'bandwidth_down': <float>,
         'tx_packets': <int>,
@@ -65,13 +69,13 @@ JSON request body: {
   * 'cos_id': <int>,
   * 'data': <bytes>,
     'result': <bytes>,
-  * 'host': <str>,
+    'host': <str>,
   * 'state': <int>,
   * 'hreq_at': <float>,
     'dres_at': <float>,
   * 'attempts': [{
       * 'attempt_no': <int>,
-      * 'host': <str>,
+        'host': <str>,
       * 'state': <int>,
       * 'hreq_at': <float>,
         'hres_at': <float>,
@@ -110,6 +114,7 @@ from consts import ROOT_PATH, SEND_TO_ORCHESTRATOR
 import config
 
 
+#  config
 NETWORK_ADDRESS = getenv('NETWORK_ADDRESS', None)
 if not NETWORK_ADDRESS:
     print(' *** ERROR in ryu_main_api: '
@@ -124,7 +129,6 @@ if _sim_on not in ('TRUE', 'FALSE'):
     _sim_on = 'FALSE'
 SIM_ON = _sim_on == 'TRUE'
 
-# simulated exec time interval
 try:
     SIM_EXEC_MIN = float(getenv('SIMULATOR_EXEC_MIN', None))
     try:
@@ -148,6 +152,7 @@ except:
     SIM_EXEC_MIN = 0
     SIM_EXEC_MAX = 1
 
+# HTTP codes
 HTTP_SUCCESS = 200
 HTTP_EXISTS = 303
 HTTP_BAD_REQUEST = 400
@@ -171,7 +176,7 @@ class RyuMainAPI(ControllerBase):
         return 'API is working!'
 
     @route('config', '/config', methods=['GET'])
-    def get_config(self, req):
+    def get_config(self, _):
         return HTTPResponse(content_type='application/json', json={
             'CONTROLLER_DECOY_MAC': DECOY_MAC,
             'CONTROLLER_DECOY_IP': DECOY_IP,
@@ -194,54 +199,51 @@ class RyuMainAPI(ControllerBase):
         # queue for functions to be called after POST data validation
         # structure: [(func, kwargs), ...]
         queue = []
-        json = req.json
         try:
+            json = req.json
             # check if node already exists
-            if self._topology.get_node(json['id']):
+            id = self._get_post(json, 'id', required=True)
+            if self._topology.get_node(id):
                 return HTTPResponse(status=HTTP_EXISTS)
 
             # check if required data fields available with correct types
             # and add function and kwargs to queue
             queue.append((self._add_node, {
-                'id': json['id'],
-                'state': bool(json['state']),
-                'type': NodeType(json['type']),
+                'id': id,
+                'state': self._get_post(json, 'state', bool, True),
+                'type': NodeType(self._get_post(json, 'type', str, True)),
             }))
 
             # check if optional data fields available with correct types
             # and add to kwargs
-            queue[-1][1]['label'] = str(json['label']) if (
-                'label' in json) else None
-            queue[-1][1]['threshold'] = float(json['threshold']) if (
-                'threshold' in json) else None
+            kwargs = queue[-1][1]
+            kwargs['label'] = self._get_post(json, 'label', str)
+            kwargs['threshold'] = self._get_post(json, 'threshold', float)
 
             # node can be added with interfaces
             if 'interfaces' in json:
                 for interface in json['interfaces']:
-                    #  required data fields for interfaces
+                    # required data fields for interfaces
                     queue.append((self._add_interface, {
-                        'node_id': json['id'],
-                        'name': str(interface['name']),
+                        'node_id': id,
+                        'name': self._get_post(interface, 'name', str, True),
                     }))
 
                     # optional data fields for interfaces
-                    try:
-                        queue[-1][1]['num'] = int(interface['num'])
-                    except (KeyError, TypeError, ValueError):
-                        queue[-1][1]['num'] = None
-                    queue[-1][1]['mac'] = str(interface['mac']) if (
-                        'mac' in interface) else None
-                    queue[-1][1]['ipv4'] = str(interface['ipv4']) if (
-                        'ipv4' in interface) else None
+                    kwargs = queue[-1][1]
+                    kwargs['num'] = self._get_post(interface, 'num', int)
+                    kwargs['mac'] = self._get_post(interface, 'mac', str)
+                    kwargs['ipv4'] = self._get_post(interface, 'ipv4', str)
 
                 queue.append((self._set_main_interface, {
-                    'node_id': json['id'],
-                    'main_interface': str(json['main_interface']),
+                    'node_id': id,
+                    'main_interface':
+                        self._get_post(interface, 'main_interface', str),
                 }))
 
         except (KeyError, TypeError, ValueError) as e:
-            print(e)
-            return HTTPResponse(str(e), status=HTTP_BAD_REQUEST)
+            return HTTPResponse(text=e.__class__.__name__+' '+str(e),
+                                status=HTTP_BAD_REQUEST)
 
         except Exception as e:
             print(' *** ERROR in ryu_main_api.add_node:',
@@ -250,10 +252,13 @@ class RyuMainAPI(ControllerBase):
 
         # once POST data is parsed and validated, call functions in queue
         for func, kwargs in queue:
-            if func(**kwargs) == False:
+            res = func(**kwargs)
+            if not res:
+                print(' *** ERROR in ryu_main_api.add_node:', func.__name__,
+                      'returned False.')
                 # if error, undo everything by deleting node
                 # this will also delete interfaces and links
-                self._topology.delete_node(json['id'])
+                self._topology.delete_node(id)
                 return HTTPResponse(status=HTTP_INTERNAL)
 
     @route('node', '/node/{id}', methods=['DELETE'])
@@ -287,47 +292,44 @@ class RyuMainAPI(ControllerBase):
             # check if optional data fields available with correct types
             # and add to kwargs
             json = req.json
-            timestamp = float(json['timestamp']) if (
-                'timestamp' in json) else time()
-            queue[-1][1]['timestamp'] = timestamp
-            queue[-1][1]['cpu_count'] = int(json['cpu_count']) if (
-                'cpu_count' in json) else None
-            queue[-1][1]['cpu_free'] = float(json['cpu_free']) if (
-                'cpu_free' in json) else None
-            queue[-1][1]['memory_total'] = float(json['memory_total']) if (
-                'memory_total' in json) else None
-            queue[-1][1]['memory_free'] = float(json['memory_free']) if (
-                'memory_free' in json) else None
-            queue[-1][1]['disk_total'] = float(json['disk_total']) if (
-                'disk_total' in json) else None
-            queue[-1][1]['disk_free'] = float(json['disk_free']) if (
-                'disk_free' in json) else None
+            timestamp = self._get_post(json, 'timestamp', float, ret=time())
+            kwargs = queue[-1][1]
+            kwargs['timestamp'] = timestamp
+            kwargs['cpu_count'] = self._get_post(json, 'cpu_count', int)
+            kwargs['cpu_free'] = self._get_post(json, 'cpu_free', float)
+            kwargs['memory_total'] = self._get_post(
+                json, 'memory_total', float)
+            kwargs['memory_free'] = self._get_post(json, 'memory_free', float)
+            kwargs['disk_total'] = self._get_post(json, 'disk_total', float)
+            kwargs['disk_free'] = self._get_post(json, 'disk_free', float)
 
             if 'interfaces' in json:
                 for interface in json['interfaces']:
                     queue.append((self._update_interface_specs, {
                         'node_id': id,
-                        'name': str(interface['name']),
+                        'name': self._get_post(interface, 'name', str, True),
                     }))
-                    queue[-1][1]['timestamp'] = timestamp
-                    queue[-1][1]['capacity'] = float(
-                        interface['capacity']) if (
-                            'capacity' in interface) else None
-                    queue[-1][1]['bandwidth_up'] = float(
-                        interface['bandwidth_up']) if (
-                            'bandwidth_up' in interface) else None
-                    queue[-1][1]['bandwidth_down'] = float(
-                        interface['bandwidth_down']) if (
-                            'bandwidth_down' in interface) else None
-                    queue[-1][1]['tx_packets'] = int(
-                        interface['tx_packets']) if (
-                            'tx_packets' in interface) else None
-                    queue[-1][1]['rx_packets'] = int(
-                        interface['rx_packets']) if (
-                            'rx_packets' in interface) else None
+                    kwargs = queue[-1][1]
+                    kwargs['timestamp'] = timestamp
+                    kwargs['capacity'] = self._get_post(
+                        interface, 'capacity', float)
+                    kwargs['bandwidth_up'] = self._get_post(
+                        interface, 'bandwidth_up', float)
+                    kwargs['bandwidth_down'] = self._get_post(
+                        interface, 'bandwidth_down', float)
+                    kwargs['tx_packets'] = self._get_post(
+                        interface, 'tx_packets', int)
+                    kwargs['rx_packets'] = self._get_post(
+                        interface, 'rx_packets', int)
 
-        except (KeyError, TypeError, ValueError):
-            return HTTPResponse(status=HTTP_BAD_REQUEST)
+        except (KeyError, TypeError, ValueError) as e:
+            return HTTPResponse(text=e.__class__.__name__+' '+str(e),
+                                status=HTTP_BAD_REQUEST)
+
+        except Exception as e:
+            print(' *** ERROR in ryu_main_api.update_node_specs:',
+                  e.__class__.__name__, e)
+            return HTTPResponse(status=HTTP_INTERNAL)
 
         # once PUT data is parsed and validated, call functions in queue
         for func, kwargs in queue:
@@ -335,33 +337,33 @@ class RyuMainAPI(ControllerBase):
 
     @route('request', '/request', methods=['POST'])
     def add_request(self, req):
-
-        # TODO test handling parallel requests (make threads if it helps)
-
         try:
             json = req.json
-            req_id = str(json['id'])
-            src = str(json['src'])
-            req_host = json['host']
-            try:
-                result = json['result'].encode()
-            except:
-                result = None
-            try:
-                dres_at = float(json['dres_at'])
-            except:
-                dres_at = None
-            Request(req_id, src, CoS.select(id=('=', int(json['cos_id'])))[0],
-                    str(json['data']).encode(), result, req_host,
-                    self._get_path(src, req_host, req_id), int(json['state']),
-                    float(json['hreq_at']), dres_at).insert()
+            print(json)
+            req_id = self._get_post(json, 'id', str, True)
+            src = self._get_post(json, 'src', str, True)
+            req_host = self._get_post(json, 'host')
+            data = self._get_post(json, 'data', required=True)
+            if isinstance(data, str):
+                data = data.encode()
+            elif not isinstance(data, bytes):
+                raise TypeError('data must be bytes')
+            result = self._get_post(json, 'result')
+            if isinstance(result, str):
+                result = result.encode()
+            elif result and not isinstance(result, bytes):
+                raise TypeError('result must be bytes')
+            Request(
+                req_id, src, CoS.select(
+                    id=('=', self._get_post(json, 'cos_id', int, True)))[0],
+                data, result, req_host,
+                self._get_path(src, req_host, req_id),
+                self._get_post(json, 'state', int, True),
+                self._get_post(json, 'hreq_at', float, True),
+                self._get_post(json, 'dres_at', float)).insert()
             for attempt in json['attempts']:
-                attempt_no = int(attempt['attempt_no'])
-                att_host = attempt['host']
-                try:
-                    hres_at = float(attempt['hres_at'])
-                except:
-                    hres_at = None
+                attempt_no = self._get_post(attempt, 'attempt_no', int, True)
+                att_host = self._get_post(attempt, 'host')
                 if PROTO_SEND_TO == SEND_TO_ORCHESTRATOR:
                     try:
                         rres_at = self.ryu_main.protocol.requests[
@@ -369,26 +371,22 @@ class RyuMainAPI(ControllerBase):
                     except:
                         rres_at = None
                 else:
-                    try:
-                        rres_at = float(attempt['rres_at'])
-                    except:
-                        rres_at = None
-                try:
-                    dres_at = float(attempt['dres_at'])
-                except:
-                    dres_at = None
+                    rres_at = self._get_post(attempt, 'rres_at', float)
                 Attempt(req_id, src, attempt_no, att_host,
                         self._get_path(src, att_host, req_id, attempt_no),
-                        int(attempt['state']), float(attempt['hreq_at']),
-                        hres_at, rres_at, dres_at).insert()
+                        self._get_post(attempt, 'state', int, True),
+                        self._get_post(attempt, 'hreq_at', float, True),
+                        self._get_post(attempt, 'hres_at', float), rres_at,
+                        self._get_post(attempt, 'dres_at', float)).insert()
                 if 'responses' in attempt:
                     for response in attempt['responses']:
-                        res_host = str(response['host'])
+                        res_host = self._get_post(response, 'host', str, True)
                         Response(req_id, src, attempt_no, res_host, NODE_ALGO,
-                                 float(response['cpu']),
-                                 float(response['ram']),
-                                 float(response['disk']),
-                                 float(response['timestamp'])).insert()
+                                 self._get_post(response, 'cpu', float, True),
+                                 self._get_post(response, 'ram', float, True),
+                                 self._get_post(response, 'disk', float, True),
+                                 self._get_post(
+                                     response, 'timestamp', float, True)).insert()
                         path, bws, dels, jits, loss, ts = self._get_path(
                             src, res_host, specs=True)
                         Path(req_id, src, attempt_no, res_host,
@@ -396,8 +394,8 @@ class RyuMainAPI(ControllerBase):
                              PATH_WEIGHT, None, ts).insert()
 
         except (KeyError, TypeError, ValueError) as e:
-            print(e.__class__.__name__, e)
-            return HTTPResponse(status=HTTP_BAD_REQUEST)
+            return HTTPResponse(text=e.__class__.__name__+' '+str(e),
+                                status=HTTP_BAD_REQUEST)
 
         Request.as_csv()
         Attempt.as_csv()
@@ -410,6 +408,18 @@ class RyuMainAPI(ControllerBase):
         clf()
         draw(self._topology.get_graph(), with_labels=True)
         savefig(ROOT_PATH + '/data/' + str(time()) + '.png')
+
+    def _get_post(self, json, key, type=None, required=False, ret=None):
+        try:
+            value = json[key]
+            if type and not isinstance(value, type):
+                raise TypeError(key + ' must be ' + type.__name__)
+            return value
+        except (KeyError, TypeError) as e:
+            if required:
+                raise e
+            else:
+                return ret
 
     def _add_node(self, **kwargs):
         return self._topology.add_node(
