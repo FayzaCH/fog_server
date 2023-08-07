@@ -32,7 +32,7 @@ from consts import ROOT_PATH
 
 # table definitions
 try:
-    DEFINITIONS = open(ROOT_PATH + '/data/definitions.sql', 'r').read()
+    DEFINITIONS = open(ROOT_PATH + '/definitions.sql', 'r').read()
 except:
     print(' *** ERROR in dblib: '
           'definitions.sql file missing from server/data directory.')
