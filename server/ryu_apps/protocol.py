@@ -1,5 +1,4 @@
 from time import time
-from logging import info, basicConfig, INFO
 
 from ryu.base.app_manager import RyuApp
 from ryu.controller.handler import set_ev_cls, MAIN_DISPATCHER
@@ -17,6 +16,7 @@ from networkx import shortest_path
 
 from model import CoS, Request, Attempt, Response, Path
 from selection import NodeSelector, PathSelector
+from logger import console, file
 from common import *
 import config
 
@@ -25,26 +25,22 @@ import config
 try:
     PROTO_TIMEOUT = float(getenv('PROTOCOL_TIMEOUT', None))
 except:
-    print(' *** WARNING in protocol: '
-          'PROTOCOL:TIMEOUT parameter invalid or missing from conf.yml. '
-          'Defaulting to 1s.')
+    console.warning('PROTOCOL:TIMEOUT parameter invalid or missing from '
+                    'conf.yml. '
+                    'Defaulting to 1s')
+    file.warning('PROTOCOL:TIMEOUT parameter invalid or missing from conf.yml',
+                 exc_info=True)
     PROTO_TIMEOUT = 1
 
 try:
     PROTO_RETRIES = int(getenv('PROTOCOL_RETRIES', None))
 except:
-    print(' *** WARNING in protocol: '
-          'PROTOCOL:RETRIES parameter invalid or missing from conf.yml. '
-          'Defaulting to 3 retries.')
+    console.warning('PROTOCOL:RETRIES parameter invalid or missing from '
+                    'conf.yml. '
+                    'Defaulting to 3 retries')
+    file.warning('PROTOCOL:RETRIES parameter invalid or missing from conf.yml',
+                 exc_info=True)
     PROTO_RETRIES = 3
-
-_proto_verbose = getenv('PROTOCOL_VERBOSE', '').upper()
-if _proto_verbose not in ('TRUE', 'FALSE'):
-    _proto_verbose = 'FALSE'
-PROTO_VERBOSE = _proto_verbose == 'TRUE'
-
-if PROTO_VERBOSE:
-    basicConfig(level=INFO, format='%(message)s')
 
 cos_dict = {cos.id: cos for cos in CoS.select()}
 cos_names = {id: cos.name for id, cos in cos_dict.items()}
@@ -152,7 +148,7 @@ class MyProtocol(Packet):
     ]
 
     def show(self):
-        if PROTO_VERBOSE:
+        if CONTROLLER_VERBOSE:
             print()
             return super().show()
 
@@ -287,7 +283,7 @@ class Protocol(RyuApp):
                     self.requests[_req_id] = _req
                 # if not processed yet
                 if _req.state == HREQ or _req.state == HRES:
-                    info('Recv host request from %s' % ip_src)
+                    console.info('Recv host request from %s', ip_src)
                     my_proto.show()
                     # set cos (for new requests and in case CoS was changed
                     # from old request)
@@ -310,12 +306,12 @@ class Protocol(RyuApp):
                     # if late rres from previous host
                     if _req.host:
                         if _req._host_mac_ip != (eth_src, ip_src):
-                            info('Recv late resource reservation response '
-                                 'from %s' % ip_src)
+                            console.info('Recv late resource reservation '
+                                         'response from %s', ip_src)
                             my_proto.show()
                             # cancel with previous host
-                            info('Send resource reservation cancellation '
-                                 'to %s' % ip_src)
+                            console.info('Send resource reservation '
+                                         'cancellation to %s', ip_src)
                             my_proto.state = RCAN
                             self._sendp(Ether(src=DECOY_MAC, dst=eth_src)
                                         / IP(src=DECOY_IP, dst=ip_src)
@@ -326,8 +322,8 @@ class Protocol(RyuApp):
                         _req.state = HRES
                         _req.attempts[att_no].rres_at = rres_at
                         _req._host_mac_ip = (eth_src, ip_src)
-                        info('Recv resource reservation response '
-                             'from %s' % ip_src)
+                        console.info('Recv resource reservation response '
+                                     'from %s', ip_src)
                         my_proto.show()
                         _key = (_req_id, eth_src)
                         _responses[_key] = req
@@ -343,15 +339,15 @@ class Protocol(RyuApp):
                             host.get_cpu_free() - cos.get_min_cpu(),
                             host.get_memory_free() - cos.get_min_ram(),
                             host.get_disk_free() - cos.get_min_disk())
-                    info('Send resource reservation acknowledgement '
-                         'to %s' % ip_src)
+                    console.info('Send resource reservation acknowledgement '
+                                 'to %s', ip_src)
                     self._sendp(Ether(src=DECOY_MAC, dst=eth_src)
                                 / IP(src=DECOY_IP, dst=ip_src)
                                 / MyProtocol(req_id=req_id, state=RACK,
                                              attempt_no=att_no,
                                              src_mac=my_proto.src_mac,
                                              src_ip=my_proto.src_ip), eth_src)
-                    info('Send host response to %s' % src_ip)
+                    console.info('Send host response to %s', src_ip)
                     dst_mac = my_proto.src_mac.decode()
                     self._sendp(Ether(src=DECOY_MAC, dst=dst_mac)
                                 / IP(src=DECOY_IP, dst=src_ip)
@@ -368,8 +364,8 @@ class Protocol(RyuApp):
                 if (_req and _req.state == RREQ
                     and (not _req.host
                          or _req._host_mac_ip == (eth_src, ip_src))):
-                    info('Recv resource reservation cancellation '
-                         'from %s' % ip_src)
+                    console.info('Recv resource reservation cancellation '
+                                 'from %s', ip_src)
                     my_proto.show()
                     _key = (_req_id, eth_src)
                     _responses[_key] = req
@@ -378,25 +374,27 @@ class Protocol(RyuApp):
                 return
 
             if state == DACK and _req:
-                info('Recv data exchange acknowledgement from %s' % ip_src)
+                console.info('Recv data exchange acknowledgement from %s',
+                             ip_src)
                 my_proto.src_mac = eth_src
                 my_proto.src_ip = ip_src.ljust(IP_LEN, ' ')
                 my_proto.show()
                 host_mac = my_proto.host_mac.decode()
                 host_ip = my_proto.host_ip.decode().strip()
-                info('Send data exchange acknowledgement to %s' % host_ip)
+                console.info('Send data exchange acknowledgement to %s',
+                             host_ip)
                 self._sendp(Ether(src=DECOY_MAC, dst=host_mac)
                             / IP(src=DECOY_IP, dst=host_ip)
                             / my_proto, host_mac)
 
             if state == DCAN and _req:
-                info('Recv data exchange cancellation from %s' % ip_src)
+                console.info('Recv data exchange cancellation from %s', ip_src)
                 my_proto.src_mac = eth_src
                 my_proto.src_ip = ip_src.ljust(IP_LEN, ' ')
                 my_proto.show()
                 host_mac = my_proto.host_mac.decode()
                 host_ip = my_proto.host_ip.decode().strip()
-                info('Send data exchange cancellation to %s' % host_ip)
+                console.info('Send data exchange cancellation to %s', host_ip)
                 self._sendp(Ether(src=DECOY_MAC, dst=host_mac)
                             / IP(src=DECOY_IP, dst=host_ip)
                             / my_proto, host_mac)
@@ -449,7 +447,7 @@ class Protocol(RyuApp):
                         for i, weight in enumerate(_weights):
                             w_idx.append((target, i, weight))
                     for target, i, _ in sorted(w_idx, key=lambda x: x[2]):
-                        info('Selecting host')
+                        console.info('Selecting host')
                         path = paths[target][i]
                         last_link = self._topology.get_link(path[-2], path[-1])
                         host_mac = last_link.dst_port.mac
@@ -457,9 +455,10 @@ class Protocol(RyuApp):
                         rreq_rt = PROTO_RETRIES
                         rres = None
                         while not rres and rreq_rt and req.state == RREQ:
-                            info('Send resource reservation request to %s' %
-                                 host_ip)
-                            info(req)
+                            console.info('Send resource reservation request '
+                                         'to %s', host_ip)
+                            if CONTROLLER_VERBOSE:
+                                print(req)
                             rreq_rt -= 1
                             # send and wait for positive response
                             rres = self._srp1(Ether(src=DECOY_MAC,
@@ -494,7 +493,7 @@ class Protocol(RyuApp):
                                 continue
             else:
                 for host in hosts:
-                    info('Selecting host')
+                    console.info('Selecting host')
                     try:
                         host_mac = host.main_interface.mac
                         host_ip = host.main_interface.ipv4
@@ -503,9 +502,10 @@ class Protocol(RyuApp):
                     rreq_rt = PROTO_RETRIES
                     rres = None
                     while not rres and rreq_rt and req.state == RREQ:
-                        info('Send resource reservation request '
-                             'to %s' % host_ip)
-                        info(req)
+                        console.info('Send resource reservation request to %s',
+                                     host_ip)
+                        if CONTROLLER_VERBOSE:
+                            print(req)
                         rreq_rt -= 1
                         # send and wait for positive response
                         rres = self._srp1(Ether(src=DECOY_MAC, dst=host_mac)
@@ -517,7 +517,7 @@ class Protocol(RyuApp):
                         if rres[MyProtocol].state == RCAN:
                             continue
         if req.state == RREQ:
-            info('No hosts available')
+            console.info('No hosts available')
             req.state = HREQ
 
     def _save_hosts(self, _req_id, attempt_no, hosts):
@@ -586,22 +586,34 @@ class Protocol(RyuApp):
             try:
                 src_port = self._topology.get_link(
                     path[-2], path[-1]).dst_port.num
+                if src_port == None:
+                    raise Exception('Port num is None')
             except:
-                self.logger.info("Last src port is not found")
+                console.error('%s->%s dst port num not found', str(path[-2]),
+                              str(path[-1]))
+                file.exception('%s->%s dst port num not found', str(path[-2]),
+                               str(path[-1]))
                 return
-                # TODO manage exception
             dst_port = self._topology.get_by_mac(dst_mac, 'port_no')
             if not dst_port:
-                self.logger.info("Last dst port is not found")
+                console.error('%s port num not found', dst_mac)
+                file.error('%s port num not found', dst_mac)
                 return
             last_dp = self._switches.dps[path[-1]]
             self._send_flow_mod(last_dp, flow_info, src_port, dst_port)
             self._send_flow_mod(last_dp, back_info, dst_port, src_port)
 
             # first flow entry (src -> first dp)
-            out_port = self._topology.get_link(path[0], path[1]).src_port.num
-            if not out_port:
-                self.logger.info("First src port not found")
+            try:
+                out_port = self._topology.get_link(
+                    path[0], path[1]).src_port.num
+                if out_port == None:
+                    raise Exception('Port num is None')
+            except:
+                console.error('%s->%s src port num not found', str(path[0]),
+                              str(path[1]))
+                file.exception('%s->%s src port num not found', str(path[0]),
+                               str(path[1]))
                 return
             self._send_flow_mod(first_dp, flow_info, in_port, out_port)
             self._send_flow_mod(first_dp, back_info, out_port, in_port)
@@ -610,7 +622,8 @@ class Protocol(RyuApp):
         else:
             out_port = self._topology.get_by_mac(dst_mac, 'port_no')
             if not out_port:
-                self.logger.info("out_port is None in same dp")
+                console.error('%s port num not found', dst_mac)
+                file.error('%s port num not found', dst_mac)
                 return
             self._send_flow_mod(first_dp, flow_info, in_port, out_port)
             self._send_flow_mod(first_dp, back_info, out_port, in_port)

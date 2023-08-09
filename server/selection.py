@@ -26,6 +26,7 @@
 from networkx import DiGraph, single_source_dijkstra, all_simple_paths
 
 from model import Node, Request
+from logger import console, file
 
 
 # =================================
@@ -57,8 +58,10 @@ class _SimpleNodeSelection(_NodeSelection):
                 if _check_resources(node, req):
                     return [node]
         else:
-            print(strategy, 'strategy not applicable in', SIMPLE_NODE,
-                  'algorithm')
+            console.error('%s strategy not applicable in %s algorithm',
+                          strategy, SIMPLE_NODE)
+            file.error('%s strategy not applicable in %s algorithm',
+                       strategy, SIMPLE_NODE)
             return []
 
 
@@ -110,8 +113,10 @@ class _DijkstraPathSelection(_PathSelection):
             return {best_target: [best_path]}, {best_target: [best_length]}
 
         else:
-            print(strategy, 'strategy not applicable in', DIJKSTRA_PATH,
-                  'algorithm')
+            console.error('%s strategy not applicable in %s algorithm',
+                          strategy, DIJKSTRA_PATH)
+            file.error('%s strategy not applicable in %s algorithm',
+                       strategy, DIJKSTRA_PATH)
             return {}, {}
 
 
@@ -182,8 +187,10 @@ class _LeastCostPathSelection(_PathSelection):
         elif strategy == BEST:
             return {best_target: [best_path], best_target: [best_Cpath]}
         else:
-            print(strategy, 'strategy not applicable in', LEASTCOST_PATH,
-                  'algorithm')
+            console.error('%s strategy not applicable in %s algorithm',
+                          strategy, LEASTCOST_PATH)
+            file.error('%s strategy not applicable in %s algorithm',
+                       strategy, LEASTCOST_PATH)
             return {}, {}
 
 
@@ -241,6 +248,9 @@ class NodeSelector:
         try:
             self._algorithm = NODE_ALGORITHMS[algorithm.upper()]()
         except:
+            console.error('Requested node algorithm not found. '
+                          'Defaulting to %s', SIMPLE_NODE)
+            file.exception('Requested node algorithm not found')
             self._algorithm = _SimpleNodeSelection()
 
     def select(self, nodes: list, req: Request, strategy: str = ''):
@@ -281,6 +291,9 @@ class PathSelector:
         try:
             self._algorithm = PATH_ALGORITHMS[algorithm.upper()]()
         except:
+            console.error('Requested path algorithm not found. '
+                          'Defaulting to %s', DIJKSTRA_PATH)
+            file.exception('Requested path algorithm not found')
             self._algorithm = _DijkstraPathSelection()
 
     def select(self, graph: DiGraph, targets: list, req: Request,

@@ -3,8 +3,9 @@ from ryu.controller.handler import set_ev_cls
 from ryu.lib.hub import spawn, sleep
 from ryu.topology.event import *
 
-from model import Node, NodeType, Topology as Topo
+from model import NodeType, Topology as Topo
 from udp_server import serve, clients
+from logger import console, file
 from common import *
 import config
 
@@ -12,17 +13,21 @@ import config
 try:
     UDP_PORT = int(getenv('ORCHESTRATOR_UDP_PORT', None))
 except:
-    print(' *** WARNING in topology: '
-          'ORCHESTRATOR:UDP_PORT parameter invalid or missing from conf.yml. '
-          'Defaulting to 7070.')
+    console.warning('ORCHESTRATOR:UDP_PORT parameter invalid or missing '
+                    'from conf.yml. '
+                    'Defaulting to 7070')
+    file.warning('ORCHESTRATOR:UDP_PORT parameter invalid or missing '
+                 'from conf.yml', exc_info=True)
     UDP_PORT = 7070
 
 try:
     UDP_TIMEOUT = int(getenv('ORCHESTRATOR_UDP_TIMEOUT', None))
 except:
-    print(' *** WARNING in topology: '
-          'ORCHESTRATOR:UDP_TIMEOUT parameter invalid or missing from conf.yml. '
-          'Defaulting to 3s.')
+    console.warning('ORCHESTRATOR:UDP_TIMEOUT parameter invalid or missing '
+                    'from conf.yml. '
+                    'Defaulting to 3s')
+    file.warning('ORCHESTRATOR:UDP_TIMEOUT parameter invalid or missing '
+                 'from conf.yml', exc_info=True)
     UDP_TIMEOUT = 3
 
 
@@ -210,6 +215,6 @@ class Topology(RyuApp, Topo):
             for node_id in list(self.get_graph()):
                 if (node_id not in clients
                         and node_id not in self._switches.dps):
-                    print(' *** WARNING in topology:',
-                          node_id, 'is disconnected.')
+                    console.warning('%s is disconnected', str(node_id))
+                    file.warning('%s is disconnected', str(node_id))
                     self.delete_node(node_id)

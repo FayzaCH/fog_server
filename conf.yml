@@ -13,6 +13,9 @@ CONTROLLER:
   # absolute path to ryu installation root directory (no default, required)
   PATH: /home/ouarab/ryu
 
+  # enable/disable printing detailed messages on console (default is False)
+  VERBOSE: True
+
 NETWORK:
   # network address (no default, required)
   ADDRESS: 10.0.0.0/8
@@ -102,9 +105,6 @@ PROTOCOL:
   
   # number of times to send an unanswered packet (default is 3)
   RETRIES: 3
-  
-  # enable/disable printing detailed protocol messages on console (default is False)
-  VERBOSE: True
 
 SIMULATOR:
   # enable/disable simulator (default is False)

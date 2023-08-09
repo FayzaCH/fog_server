@@ -111,21 +111,24 @@ from ryu_apps.common import (DECOY_IP, DECOY_MAC, MONITOR_PERIOD,
 from ryu_apps.protocol import PROTO_RETRIES, PROTO_TIMEOUT
 from ryu_apps.topology import UDP_PORT, UDP_TIMEOUT
 from consts import ROOT_PATH, SEND_TO_ORCHESTRATOR
+from logger import console, file
 import config
 
 
-#  config
+# config
 NETWORK_ADDRESS = getenv('NETWORK_ADDRESS', None)
 if not NETWORK_ADDRESS:
-    print(' *** ERROR in ryu_main_api: '
-          'NETWORK:ADDRESS parameter missing from conf.yml.')
+    console.error('NETWORK:ADDRESS parameter missing from conf.yml')
+    file.error('NETWORK:ADDRESS parameter missing from conf.yml')
     exit()
 
 _sim_on = getenv('SIMULATOR_ACTIVE', '').upper()
 if _sim_on not in ('TRUE', 'FALSE'):
-    print(' *** WARNING in ryu_main_api: '
-          'SIMULATOR:ACTIVE parameter invalid or missing from conf.yml. '
-          'Defaulting to False.')
+    console.warning('SIMULATOR:ACTIVE parameter invalid or missing from '
+                    'conf.yml. '
+                    'Defaulting to False')
+    file.warning('SIMULATOR:ACTIVE parameter (%s) invalid or missing from '
+                 'conf.yml', _sim_on)
     _sim_on = 'FALSE'
 SIM_ON = _sim_on == 'TRUE'
 
@@ -134,21 +137,28 @@ try:
     try:
         SIM_EXEC_MAX = float(getenv('SIMULATOR_EXEC_MAX', None))
         if SIM_EXEC_MAX < SIM_EXEC_MIN:
-            print(' *** WARNING in ryu_main_api: '
-                  'SIMULATOR:EXEC_MIN and SIMULATOR:EXEC_MAX parameters invalid. '
-                  'Defaulting to [0s, 1s].')
+            console.warning('SIMULATOR:EXEC_MIN and SIMULATOR:EXEC_MAX '
+                            'parameters invalid in conf.yml. '
+                            'Defaulting to [0s, 1s]')
+            file.warning('SIMULATOR:EXEC_MIN and SIMULATOR:EXEC_MAX '
+                         'parameters (%s and %s) invalid in conf.yml. ',
+                         str(SIM_EXEC_MIN), str(SIM_EXEC_MAX))
             SIM_EXEC_MIN = 0
             SIM_EXEC_MAX = 1
     except:
-        print(' *** WARNING in ryu_main_api: '
-              'SIMULATOR:EXEC_MAX parameter invalid or missing from conf.yml. '
-              'Defaulting to [0s, 1s].')
+        console.warning('SIMULATOR:EXEC_MAX parameter invalid or missing from '
+                        'conf.yml. '
+                        'Defaulting to [0s, 1s]')
+        file.warning('SIMULATOR:EXEC_MAX parameter invalid or missing from '
+                     'conf.yml', exc_info=True)
         SIM_EXEC_MIN = 0
         SIM_EXEC_MAX = 1
 except:
-    print(' *** WARNING in ryu_main_api: '
-          'SIMULATOR:EXEC_MIN parameter invalid or missing from conf.yml. '
-          'Defaulting to [0s, 1s].')
+    console.warning('SIMULATOR:EXEC_MIN parameter invalid or missing from '
+                    'conf.yml. '
+                    'Defaulting to [0s, 1s]')
+    file.warning('SIMULATOR:EXEC_MIN parameter invalid or missing from '
+                 'conf.yml', exc_info=True)
     SIM_EXEC_MIN = 0
     SIM_EXEC_MAX = 1
 
@@ -242,20 +252,22 @@ class RyuMainAPI(ControllerBase):
                 }))
 
         except (KeyError, TypeError, ValueError) as e:
+            file.exception('%s from %s', e.__class__.__name__,
+                           req.environ['REMOTE_IP'])
             return HTTPResponse(text=e.__class__.__name__+' '+str(e),
                                 status=HTTP_BAD_REQUEST)
 
         except Exception as e:
-            print(' *** ERROR in ryu_main_api.add_node:',
-                  e.__class__.__name__, e)
+            console.error('%s %s', e.__class__.__name__, str(e))
+            file.exception(e.__class__.__name__)
             return HTTPResponse(status=HTTP_INTERNAL)
 
         # once POST data is parsed and validated, call functions in queue
         for func, kwargs in queue:
             res = func(**kwargs)
             if not res:
-                print(' *** ERROR in ryu_main_api.add_node:', func.__name__,
-                      'returned False.')
+                console.error('%s returned False', func.__name__)
+                file.error('%s returned False', func.__name__)
                 # if error, undo everything by deleting node
                 # this will also delete interfaces and links
                 self._topology.delete_node(id)
@@ -274,8 +286,11 @@ class RyuMainAPI(ControllerBase):
                 # or a switch
                 # (id is dpid but converted from hexadecimal to decimal)
                 id = int(id, 16)
-            except (TypeError, ValueError):
-                return HTTPResponse(status=HTTP_NOT_FOUND)
+            except (TypeError, ValueError) as e:
+                file.exception('%s from %s', e.__class__.__name__,
+                               req.environ['REMOTE_IP'])
+                return HTTPResponse(text=e.__class__.__name__+' '+str(e),
+                                    status=HTTP_BAD_REQUEST)
             if not self._topology.get_node(id):
                 return HTTPResponse(status=HTTP_NOT_FOUND)
 
@@ -323,12 +338,14 @@ class RyuMainAPI(ControllerBase):
                         interface, 'rx_packets', int)
 
         except (KeyError, TypeError, ValueError) as e:
+            file.exception('%s from %s', e.__class__.__name__,
+                           req.environ['REMOTE_IP'])
             return HTTPResponse(text=e.__class__.__name__+' '+str(e),
                                 status=HTTP_BAD_REQUEST)
 
         except Exception as e:
-            print(' *** ERROR in ryu_main_api.update_node_specs:',
-                  e.__class__.__name__, e)
+            console.error('%s %s', e.__class__.__name__, str(e))
+            file.exception(e.__class__.__name__)
             return HTTPResponse(status=HTTP_INTERNAL)
 
         # once PUT data is parsed and validated, call functions in queue
@@ -393,6 +410,8 @@ class RyuMainAPI(ControllerBase):
                              PATH_WEIGHT, None, ts).insert()
 
         except (KeyError, TypeError, ValueError) as e:
+            file.exception('%s from %s', e.__class__.__name__,
+                           req.environ['REMOTE_IP'])
             return HTTPResponse(text=e.__class__.__name__+' '+str(e),
                                 status=HTTP_BAD_REQUEST)
 
@@ -481,8 +500,8 @@ class RyuMainAPI(ControllerBase):
             if path:
                 return get_path(path, specs)
         except Exception as e:
-            print(' *** ERROR in ryu_main_api._get_path: ',
-                  e.__class__.__name__, e)
+            console.error('%s %s', e.__class__.__name__, str(e))
+            file.exception(e.__class__.__name__)
         if specs:
             return None, None, None, None, None, None
         return None

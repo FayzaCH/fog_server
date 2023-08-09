@@ -7,6 +7,8 @@ from os import environ
 from os.path import dirname, abspath
 from yaml import safe_load
 
+from logger import console, file
+
 
 CONF = dirname(dirname(abspath(__file__))) + '/conf.yml'
 
@@ -20,5 +22,6 @@ try:
                     environ[sect + '_' + param] = str(value)
 
 except Exception as e:
-    print(' *** ERROR in config:', e.__class__.__name__, e)
+    console.error('%s %s', e.__class__.__name__, str(e))
+    file.exception(e.__class__.__name__)
     exit()

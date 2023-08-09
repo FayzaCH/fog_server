@@ -10,57 +10,60 @@ from gnocchiclient.client import Client
 from gnocchiclient.exceptions import Conflict, NotFound
 
 from model import NodeType
+from logger import console, file
 from common import *
 import config
 
 
 _os_verify = getenv('OPENSTACK_VERIFY_CERT', '').upper()
 if _os_verify not in ('TRUE', 'FALSE'):
-    print(' *** WARNING in metrics: '
-          'OPENSTACK:VERIFY_CERT parameter invalid or missing from conf.yml. '
-          'Defaulting to False.')
+    console.warning('OPENSTACK:VERIFY_CERT parameter invalid or missing from '
+                    'conf.yml. '
+                    'Defaulting to False')
+    file.warning('OPENSTACK:VERIFY_CERT parameter (%s) invalid or missing '
+                 'from conf.yml', _os_verify)
     _os_verify = 'FALSE'
 OS_VERIFY_CERT = _os_verify == 'TRUE'
 
 OS_URL = getenv('OPENSTACK_URL', '')
 if not OS_URL:
-    print(' *** WARNING in metrics: '
-          'OPENSTACK:URL parameter missing from conf.yml.')
+    console.warning('OPENSTACK:URL parameter missing from conf.yml')
+    file.warning('OPENSTACK:URL parameter missing from conf.yml')
 
 OS_AUTH_PORT = getenv('OPENSTACK_AUTH_PORT', '')
 if not OS_AUTH_PORT:
-    print(' *** WARNING in metrics: '
-          'OPENSTACK:AUTH_PORT parameter missing from conf.yml.')
+    console.warning('OPENSTACK:AUTH_PORT parameter missing from conf.yml')
+    file.warning('OPENSTACK:AUTH_PORT parameter missing from conf.yml')
 
 OS_GNOCCHI_PORT = getenv('OPENSTACK_GNOCCHI_PORT', '')
 if not OS_GNOCCHI_PORT:
-    print(' *** WARNING in metrics: '
-          'OPENSTACK:GNOCCHI_PORT parameter missing from conf.yml.')
+    console.warning('OPENSTACK:GNOCCHI_PORT parameter missing from conf.yml')
+    file.warning('OPENSTACK:GNOCCHI_PORT parameter missing from conf.yml')
 
 OS_USERNAME = getenv('OPENSTACK_USERNAME', '')
 if not OS_USERNAME:
-    print(' *** WARNING in metrics: '
-          'OPENSTACK:USERNAME parameter missing from conf.yml.')
+    console.warning('OPENSTACK:USERNAME parameter missing from conf.yml')
+    file.warning('OPENSTACK:USERNAME parameter missing from conf.yml')
 
 OS_PASSWORD = getenv('OPENSTACK_PASSWORD', '')
 if not OS_PASSWORD:
-    print(' *** WARNING in metrics: '
-          'OPENSTACK:PASSWORD parameter missing from conf.yml.')
+    console.warning('OPENSTACK:PASSWORD parameter missing from conf.yml')
+    file.warning('OPENSTACK:PASSWORD parameter missing from conf.yml')
 
 OS_USER_DOMAIN_ID = getenv('OPENSTACK_USER_DOMAIN_ID', '')
 if not OS_USER_DOMAIN_ID:
-    print(' *** WARNING in metrics: '
-          'OPENSTACK:USER_DOMAIN_ID parameter missing from conf.yml.')
+    console.warning('OPENSTACK:USER_DOMAIN_ID parameter missing from conf.yml')
+    file.warning('OPENSTACK:USER_DOMAIN_ID parameter missing from conf.yml')
 
 OS_USER_ID = getenv('OPENSTACK_USER_ID', '')
 if not OS_USER_ID:
-    print(' *** WARNING in metrics: '
-          'OPENSTACK:USER_ID parameter missing from conf.yml.')
+    console.warning('OPENSTACK:USER_ID parameter missing from conf.yml')
+    file.warning('OPENSTACK:USER_ID parameter missing from conf.yml')
 
 OS_PROJECT_ID = getenv('OPENSTACK_PROJECT_ID', '')
 if not OS_PROJECT_ID:
-    print(' *** WARNING in metrics: '
-          'OPENSTACK:PROJECT_ID parameter missing from conf.yml.')
+    console.warning('OPENSTACK:PROJECT_ID parameter missing from conf.yml')
+    file.warning('OPENSTACK:PROJECT_ID parameter missing from conf.yml')
 
 OS_ARCHIVE_POLICY = getenv('OPENSTACK_ARCHIVE_POLICY', '')
 
@@ -192,10 +195,9 @@ class Metrics(RyuApp):
             self._os_authenticate()
             self._archive_policies = [
                 ap['name'] for ap in self._client.archive_policy.list()]
-
         except Exception as e:
-            print(' *** ERROR in metrics.__init__:', e.__class__.__name__, e)
-
+            console.error('%s %s', e.__class__.__name__, str(e))
+            file.exception(e.__class__.__name__)
         else:
             spawn(self._add_measures)
 
@@ -322,8 +324,8 @@ class Metrics(RyuApp):
                         })
 
             except Exception as e:
-                print(' *** ERROR in metrics._add_measures:',
-                      e.__class__.__name__, e)
+                console.error('%s %s', e.__class__.__name__, str(e))
+                file.exception(e.__class__.__name__)
 
             else:
                 try:
@@ -331,8 +333,8 @@ class Metrics(RyuApp):
                         measures)
 
                 except Exception as e:
-                    print(' *** ERROR in metrics._add_measures:',
-                          e.__class__.__name__, e)
+                    console.error('%s %s', e.__class__.__name__, str(e))
+                    file.exception(e.__class__.__name__)
 
     def _os_authenticate(self):
         if not OS_VERIFY_CERT:
@@ -350,14 +352,17 @@ class Metrics(RyuApp):
             try:
                 self._client.resource_type.create(type['def'])
             except Conflict:
+                # already exists
                 pass
 
     def _os_ensure_metrics(self, resource_id: str, metrics: list, units: list):
         os_archive_policy = OS_ARCHIVE_POLICY
         if os_archive_policy not in self._archive_policies:
-            print(' *** WARNING in metrics._os_ensure_metrics: '
-                  'OPENSTACK:ARCHIVE_POLICY parameter invalid or missing from '
-                  'conf.yml. Defaulting to ceilometer-low.')
+            console.warning('OPENSTACK:ARCHIVE_POLICY parameter invalid or '
+                            'missing from conf.yml. '
+                            'Defaulting to ceilometer-low')
+            file.warning('OPENSTACK:ARCHIVE_POLICY parameter (%s) invalid or '
+                         'missing from conf.yml', os_archive_policy)
             os_archive_policy = 'ceilometer-low'
         for i, name in enumerate(metrics):
             try:
@@ -365,6 +370,7 @@ class Metrics(RyuApp):
                     name=name, resource_id=resource_id, unit=units[i],
                     archive_policy_name=os_archive_policy)
             except Conflict:
+                # already exists
                 pass
 
     def _os_ensure_resource(self, resource_type: str, attributes: dict):
@@ -378,6 +384,7 @@ class Metrics(RyuApp):
             self._os_ensure_resource_types()
             self._client.resource.create(resource_type, attributes)
         except Conflict:
+            # already exists
             pass
 
     def _ensure_resource(self, resource_type, attributes):

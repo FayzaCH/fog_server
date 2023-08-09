@@ -28,6 +28,7 @@ from ryu.lib.hub import sleep, spawn
 from ryu.topology.event import (EventSwitchEnter, EventSwitchLeave,
                                 EventHostAdd)
 
+from logger import console, file
 from common import *
 import config
 
@@ -35,17 +36,19 @@ import config
 try:
     ARP_REFRESH = float(getenv('NETWORK_ARP_REFRESH', None))
 except:
-    print(' *** WARNING in simple_arp: '
-          'NETWORK:ARP_REFRESH parameter invalid or missing from conf.yml. '
-          'Defaulting to 60s.')
+    console.warning('NETWORK:ARP_REFRESH parameter invalid or missing from '
+                    'conf.yml. '
+                    'Defaulting to 60s')
+    file.warning('NETWORK:ARP_REFRESH parameter invalid or missing from '
+                 'conf.yml', exc_info=True)
     ARP_REFRESH = 60
 
 IPS = []
 IP_POOL = getenv('NETWORK_IP_POOL', '')
 if not IP_POOL:
-    print(' *** WARNING in simple_arp: '
-          'NETWORK:IP_POOL parameter missing from conf.yml. '
-          'Defaulting to empty IP address pool.')
+    console.warning('NETWORK:IP_POOL parameter missing from conf.yml. '
+                    'Defaulting to empty IP address pool.')
+    file.warning('NETWORK:IP_POOL parameter missing from conf.yml')
 else:
     # get individual IP addresses from IP_POOL
     _pools = sub('[^0-9.:,]+', '', IP_POOL).split(',')
@@ -63,8 +66,8 @@ else:
                 IPS.append(ip_address(_pool).exploded)
 
             except ValueError:
-                print(' *** ERROR in simple_arp: '
-                      'invalid IP address pool or value %s.' % _pool)
+                console.error('Invalid IP address pool or value (%s)', _pool)
+                file.exception('Invalid IP address pool or value')
 
 
 class SimpleARP(RyuApp):

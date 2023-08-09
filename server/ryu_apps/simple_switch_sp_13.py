@@ -12,6 +12,7 @@ from ryu.topology.event import (EventLinkAdd, EventLinkDelete,
 from networkx import DiGraph, shortest_path
 from networkx.exception import NetworkXError, NetworkXNoPath
 
+from logger import console, file
 from common import *
 
 
@@ -139,11 +140,12 @@ class SimpleSwitchSP13(SimpleSwitch13):
                 # TODO install flows on all switches to reduce packet-ins
 
             except NetworkXNoPath:
+                file.exception('No path')
                 return
 
             except Exception as e:
-                print(' *** ERROR in simple_switch_sp_13._packet_in_handler:',
-                      e.__class__.__name__, e)
+                console.error('%s %s', e.__class__.__name__, str(e))
+                file.exception(e.__class__.__name__)
                 return
 
         else:
@@ -196,7 +198,7 @@ class SimpleSwitchSP13(SimpleSwitch13):
             self._net.remove_edge(src_dpid, dst_dpid)
 
         except NetworkXError:
-            pass
+            file.exception('No edge')
 
         # when link is deleted, paths it belonged to become invalid
         # delete them so they are recalculated when needed
@@ -231,7 +233,7 @@ class SimpleSwitchSP13(SimpleSwitch13):
             self._net.remove_node(dpid)
 
         except NetworkXError:
-            pass
+            file.exception('No node')
 
         # delete _outs entries for host-switch links (because
         # _link_delete_handler only considers switch-switch links)

@@ -28,14 +28,15 @@ from json import load
 
 from model import Model, CoS, Request, Attempt, Response, Node, Path
 from consts import ROOT_PATH
+from logger import console, file
 
 
 # table definitions
 try:
     DEFINITIONS = open(ROOT_PATH + '/definitions.sql', 'r').read()
 except:
-    print(' *** ERROR in dblib: '
-          'definitions.sql file missing from server/data directory.')
+    console.error('Could not read definitions.sql file in root directory')
+    file.exception('Could not read definitions.sql file in root directory')
     exit()
 
 # database file
@@ -91,7 +92,8 @@ def insert(obj: Model):
         return True
 
     except Exception as e:
-        print(' *** ERROR in dblib.insert', e.__class__.__name__, e)
+        console.error('%s %s', e.__class__.__name__, str(e))
+        file.exception(e.__class__.__name__)
         return False
 
 
@@ -125,7 +127,8 @@ def update(obj: Model, _id: tuple = ('id',)):
         return True
 
     except Exception as e:
-        print(' *** ERROR in dblib.update', e.__class__.__name__, e)
+        console.error('%s %s', e.__class__.__name__, str(e))
+        file.exception(e.__class__.__name__)
         return False
 
 
@@ -166,7 +169,8 @@ def select(cls, fields: tuple = ('*',), groups: tuple = None,
         return _rows[event]
 
     except Exception as e:
-        print(' *** ERROR in dblib.select', e.__class__.__name__, e)
+        console.error('%s %s', e.__class__.__name__, str(e))
+        file.exception(e.__class__.__name__)
         return None
 
 
@@ -213,7 +217,8 @@ def select_page(cls, page: int, page_size: int, fields: tuple = ('*',),
         return _rows[event]
 
     except Exception as e:
-        print(' *** ERROR in dblib.select_page', e.__class__.__name__, e)
+        console.error('%s %s', e.__class__.__name__, str(e))
+        file.exception(e.__class__.__name__)
         return None
 
 
@@ -236,14 +241,15 @@ def as_csv(cls, fields: tuple = ('*',), abs_path: str = '', _suffix: str = '',
                 fields = _get_columns(cls)
             with open(abs_path if abs_path else (
                     ROOT_PATH + '/data/' + _tables[cls.__name__] + _suffix + '.csv'),
-                    'w', newline='') as file:
-                csv_writer = writer(file)
+                    'w', newline='') as csv_file:
+                csv_writer = writer(csv_file)
                 csv_writer.writerow(fields)
                 csv_writer.writerows(rows)
             return True
 
         except Exception as e:
-            print(' *** ERROR in dblib.as_csv', e.__class__.__name__, e)
+            console.error('%s %s', e.__class__.__name__, str(e))
+            file.exception(e.__class__.__name__)
             return False
     else:
         return False
@@ -277,8 +283,8 @@ class Connection:
                     script = script[:-1] + ';'
                     self._connection.executescript(script)
             except:
-                print(' *** ERROR in dblib.Connection: '
-                      'Could not load CoS from cos.json.')
+                console.error('Could not load CoS from cos.json')
+                file.exception('Could not load CoS from cos.json')
             self._connection.row_factory = lambda _, row: list(row)
         return self._connection
 
@@ -297,7 +303,8 @@ def _execute():
                 cursor.connection.commit()
 
         except Exception as e:
-            print(' *** ERROR in dblib._execute', e.__class__.__name__, e)
+            console.error('%s %s', e.__class__.__name__, str(e))
+            file.exception(e.__class__.__name__)
 
 
 Thread(target=_execute).start()
@@ -354,7 +361,7 @@ def _adapt(obj: Model):
         if obj.loss_rates:
             loss_rates = str(obj.loss_rates)
         return (obj.req_id, obj.src, obj.attempt_no, obj.host, path,
-                obj.algorithm, bandwidths, delays, jitters, loss_rates, 
+                obj.algorithm, bandwidths, delays, jitters, loss_rates,
                 obj.weight_type, obj.weight, obj.timestamp)
 
 
