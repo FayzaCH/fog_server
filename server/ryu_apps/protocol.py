@@ -422,6 +422,7 @@ class Protocol(RyuApp):
         return _responses[_key]
 
     def _select_host(self, my_proto, _req_id, req, eth_src, ip_src):
+        att_no = my_proto.attempt_no
         # to keep track of all possible hosts
         # the default strategy ALL is applied
         # the hosts are then tried first (in list) to last
@@ -429,7 +430,7 @@ class Protocol(RyuApp):
             self._topology.get_nodes().values(), req)
         host_ip = ''
         if hosts:
-            spawn(self._save_hosts, _req_id, my_proto.attempt_no, hosts)
+            spawn(self._save_hosts, _req_id, att_no, hosts)
             my_proto.state = RREQ
             my_proto.src_mac = eth_src
             my_proto.src_ip = ip_src.ljust(IP_LEN, ' ')
@@ -437,18 +438,13 @@ class Protocol(RyuApp):
                 # to keep track of all possible paths
                 # the default strategy ALL is applied
                 # the paths are then tried best (least cost) to worst
-                paths, weights = PathSelector(PATH_ALGO).select(
+                paths = PathSelector(PATH_ALGO).select(
                     self._topology.get_graph(), hosts, req, PATH_WEIGHT)
                 if paths:
-                    spawn(self._save_paths,
-                          _req_id, my_proto.attempt_no, paths, weights)
-                    w_idx = []
-                    for target, _weights in weights.items():
-                        for i, weight in enumerate(_weights):
-                            w_idx.append((target, i, weight))
-                    for target, i, _ in sorted(w_idx, key=lambda x: x[2]):
+                    spawn(self._save_paths, _req_id, att_no, paths)
+                    for path_dict in paths:
                         console.info('Selecting host')
-                        path = paths[target][i]
+                        path = path_dict['path']
                         last_link = self._topology.get_link(path[-2], path[-1])
                         host_mac = last_link.dst_port.mac
                         host_ip = last_link.dst_port.ipv4
@@ -487,7 +483,7 @@ class Protocol(RyuApp):
                                     (eth_src, host_mac))
                                 # save paths for logging
                                 req.path = path
-                                req.attempts[my_proto.attempt_no].path = path
+                                req.attempts[att_no].path = path
                                 return
                             if rres[MyProtocol].state == RCAN:
                                 continue
@@ -543,14 +539,12 @@ class Protocol(RyuApp):
         Response.as_csv(orders=('timestamp',))
         Path.as_csv(orders=('timestamp',))
 
-    def _save_paths(self, _req_id, attempt_no, paths, weights):
+    def _save_paths(self, _req_id, attempt_no, paths):
         src_ip, req_id = _req_id
-        for host, _paths in paths.items():
-            for idx, path in enumerate(_paths):
-                _path, bws, dels, jits, loss, ts = get_path(path, True)
-                Path(req_id, src_ip, attempt_no, host, _path, PATH_ALGO,
-                     bws, dels, jits, loss, PATH_WEIGHT, weights[host][idx],
-                     ts).insert()
+        for path_dict in paths:
+            path, bws, dels, jits, loss, ts = get_path(path_dict['path'], True)
+            Path(req_id, src_ip, attempt_no, path[-1], path, PATH_ALGO, bws,
+                 dels, jits, loss, PATH_WEIGHT, path_dict['length'], ts).insert()
         Path.as_csv(orders=('timestamp',))
 
     # the following methods are inspired by

@@ -23,6 +23,8 @@
 '''
 
 
+from bisect import insort
+
 from networkx import DiGraph, single_source_dijkstra, all_simple_paths
 
 from model import Node, Request
@@ -73,51 +75,54 @@ class _SimpleNodeSelection(_NodeSelection):
 class _PathSelection:
     def select(self, graph: DiGraph, targets: list, req: Request,
                weight: str = '', strategy: str = ''):
-        return {}, {}
+        return []
 
 
 class _DijkstraPathSelection(_PathSelection):
     def select(self, graph: DiGraph, targets: list, req: Request,
                weight: str = '', strategy: str = ''):
+        cutoff = None
+        weight_func = 1
         if weight == DELAY_WEIGHT:
-            def weight_func(u, v, d):
+            def weight_func(_, __, d):
                 return d['link'].get_delay()
-        else:
-            weight_func = 1
+            cutoff = req.get_max_delay()
 
-        # TODO calculate cutoff from requirements
-
+        # even if we call networkx.dijkstra_path(...) with specific targets
+        # networkx will always call single_source_dijkstra(...) and calculate
+        # all paths between source and all targets (check networkx code)
+        # so might as well get all paths and reformat them as we want
         lengths, paths = single_source_dijkstra(graph, req.src.id,
-                                                cutoff=None,
+                                                cutoff=cutoff,
                                                 weight=weight_func)
 
-        targs = targets
-        if targs and isinstance(targs[0], Node):
-            targs = [target.id for target in targets]
-
         if not strategy or strategy == ALL:
-            return ({target: [paths[target]]
-                     for target in paths if target in targs},
-                    {target: [lengths[target]]
-                     for target in lengths if target in targs})
+            ret = []
+            for target in targets:
+                targ_id = target.id
+                if targ_id in lengths:
+                    insort(
+                        ret,
+                        {'path': paths[targ_id], 'length': lengths[targ_id]},
+                        key=lambda x: x['length'])
+            return ret
 
         elif strategy == BEST:
             best_length = float('inf')
             best_path = None
-            best_target = None
-            for target in lengths:
-                if target in targs and lengths[target] < best_length:
-                    best_length = lengths[target]
-                    best_path = paths[target]
-                    best_target = target
-            return {best_target: [best_path]}, {best_target: [best_length]}
+            for target in targets:
+                targ_id = target.id
+                if targ_id in lengths and lengths[targ_id] < best_length:
+                    best_length = lengths[targ_id]
+                    best_path = paths[targ_id]
+            return [{'path': best_path, 'length': best_length}]
 
         else:
             console.error('%s strategy not applicable in %s algorithm',
                           strategy, DIJKSTRA_PATH)
             file.error('%s strategy not applicable in %s algorithm',
                        strategy, DIJKSTRA_PATH)
-            return {}, {}
+            return []
 
 
 class _LeastCostPathSelection(_PathSelection):
@@ -150,19 +155,15 @@ class _LeastCostPathSelection(_PathSelection):
             CBWp = BWc / (Ct - (Bw + BWc))
             return CBWp / (CDp * CJp * CLRp)
 
-        targs = targets
-        if targs and isinstance(targs[0], Node):
-            targs = [target.id for target in targets]
-
-        paths = all_simple_paths(graph, req.src.id, targs)
+        paths = all_simple_paths(graph, req.src.id,
+                                 [target.id for target in targets])
 
         if not strategy or strategy == ALL:
-            weights = {}
-            paths_dict = {}
-        elif strategy == BEST:
+            ret = []
+
+        if strategy == BEST:
             best_Cpath = float('inf')
             best_path = None
-            best_target = None
 
         for path in paths:
             try:
@@ -170,28 +171,27 @@ class _LeastCostPathSelection(_PathSelection):
             except:
                 Cpath = float('inf')
 
-            dst = path[-1]
             if not strategy or strategy == ALL:
-                weights.setdefault(dst, [])
-                weights[dst].append(Cpath)
-                paths_dict.setdefault(dst, [])
-                paths_dict[dst].append(path)
+                insort(ret, {'path': path, 'length': Cpath},
+                       key=lambda x: x['length'])
+
             elif strategy == BEST:
                 if Cpath < best_Cpath:
                     best_Cpath = Cpath
                     best_path = path
-                    best_target = dst
 
         if not strategy or strategy == ALL:
-            return paths_dict, weights
+            return ret
+
         elif strategy == BEST:
-            return {best_target: [best_path], best_target: [best_Cpath]}
+            return [{'path': best_path, 'length': best_Cpath}]
+
         else:
             console.error('%s strategy not applicable in %s algorithm',
                           strategy, LEASTCOST_PATH)
             file.error('%s strategy not applicable in %s algorithm',
                        strategy, LEASTCOST_PATH)
-            return {}, {}
+            return []
 
 
 # ================================
@@ -258,7 +258,7 @@ class NodeSelector:
             Select node(s) that satisfy req through given algorithm and based
             on given strategy (ALL or FIRST). Default strategy is ALL.
 
-            Returns selected Node(s).
+            Returns list of selected Node(s).
         '''
 
         return self._algorithm.select(nodes, req, strategy)
@@ -304,7 +304,7 @@ class PathSelector:
             or COST) and given strategy (ALL or BEST). Default weight is HOP 
             (all edges are equal). Default strategy is ALL.
 
-            Returns selected path(s) and weight(s).
+            Returns list of dicts of selected path(s) and length(s).
         '''
 
         return self._algorithm.select(graph, targets, req, weight, strategy)
