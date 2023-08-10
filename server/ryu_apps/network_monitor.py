@@ -229,7 +229,7 @@ class NetworkMonitor(RyuApp):
         port = ev.port
         dpid = port.dpid
         port_no = port.port_no
-        self.port_features.get(dpid, {}).pop(port_no)
+        self.port_features.get(dpid, {}).pop(port_no, None)
         self.port_stats.pop((dpid, port_no), None)
         self.port_speed.pop((dpid, port_no), None)
         self.free_bandwidth.get(dpid, {}).pop(port_no, None)
@@ -244,4 +244,4 @@ class NetworkMonitor(RyuApp):
     @set_ev_cls(EventLinkDelete)
     def _link_delete_handler(self, ev):
         src = ev.link.src
-        self._link_ports.pop(src.dpid, src.port_no)
+        self._link_ports.pop((src.dpid, src.port_no), None)
