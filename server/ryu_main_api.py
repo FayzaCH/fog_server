@@ -253,7 +253,7 @@ class RyuMainAPI(ControllerBase):
 
         except (KeyError, TypeError, ValueError) as e:
             file.exception('%s from %s', e.__class__.__name__,
-                           req.environ['REMOTE_IP'])
+                           req.environ['REMOTE_ADDR'])
             return HTTPResponse(text=e.__class__.__name__+' '+str(e),
                                 status=HTTP_BAD_REQUEST)
 
@@ -288,7 +288,7 @@ class RyuMainAPI(ControllerBase):
                 id = int(id, 16)
             except (TypeError, ValueError) as e:
                 file.exception('%s from %s', e.__class__.__name__,
-                               req.environ['REMOTE_IP'])
+                               req.environ['REMOTE_ADDR'])
                 return HTTPResponse(text=e.__class__.__name__+' '+str(e),
                                     status=HTTP_BAD_REQUEST)
             if not self._topology.get_node(id):
@@ -339,7 +339,7 @@ class RyuMainAPI(ControllerBase):
 
         except (KeyError, TypeError, ValueError) as e:
             file.exception('%s from %s', e.__class__.__name__,
-                           req.environ['REMOTE_IP'])
+                           req.environ['REMOTE_ADDR'])
             return HTTPResponse(text=e.__class__.__name__+' '+str(e),
                                 status=HTTP_BAD_REQUEST)
 
@@ -411,7 +411,7 @@ class RyuMainAPI(ControllerBase):
 
         except (KeyError, TypeError, ValueError) as e:
             file.exception('%s from %s', e.__class__.__name__,
-                           req.environ['REMOTE_IP'])
+                           req.environ['REMOTE_ADDR'])
             return HTTPResponse(text=e.__class__.__name__+' '+str(e),
                                 status=HTTP_BAD_REQUEST)
 
