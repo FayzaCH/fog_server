@@ -21,40 +21,43 @@ try:
     nodes = client.resource.list('fog_node')
 except:
     nodes = []
-#pprint(nodes)
+pprint(nodes)
+
 '''
 for resource in nodes:
     for metric in resource['metrics'].values():
         client.metric.delete(metric)
     client.resource.delete(resource['id'])
-#'''
+# '''
 
 try:
     ports = client.resource.list('fog_port')
 except:
     ports = []
-#pprint(ports)
+pprint(ports)
+
 '''
 for resource in ports:
     for metric in resource['metrics'].values():
         client.metric.delete(metric)
     client.resource.delete(resource['id'])
-#'''
+# '''
 
 try:
     links = client.resource.list('fog_link')
 except:
     links = []
-#pprint(links)
+pprint(links)
+
 '''
 for resource in links:
     for metric in resource['metrics'].values():
         client.metric.delete(metric)
     client.resource.delete(resource['id'])
-#'''
+# '''
 
-#types = client.resource_type.list()
-# pprint(types)
+types = client.resource_type.list()
+pprint(types)
 
 '''
 try:
@@ -69,8 +72,9 @@ try:
     client.resource_type.delete('fog_link')
 except:
     pass
-#'''
+# '''
 
+'''
 for node in nodes:
     print(node['original_resource_id'] + '.cpu.count')
     for measure in client.metric.get_measures(node['metrics']['cpu.count']):
@@ -85,7 +89,9 @@ for node in nodes:
     for measure in client.metric.get_measures(node['metrics']['disk.free']):
         print(measure[0].strftime('%m/%d/%Y, %H:%M:%S  '),
               round(measure[2], 2), 'GB')    
+#'''
 
+'''
 for port in ports:
     print(port['original_resource_id'] + '.capacity')
     for measure in client.metric.get_measures(port['metrics']['capacity']):
@@ -101,7 +107,9 @@ for port in ports:
     for measure in client.metric.get_measures(port['metrics']['bandwidth.down.free']):
         print(measure[0].strftime('%m/%d/%Y, %H:%M:%S  '),
               round(measure[2], 2), 'Mbps')
+#'''
 
+'''
 for link in links:
     print(link['original_resource_id'] + '.capacity')
     for measure in client.metric.get_measures(link['metrics']['capacity']):
@@ -127,3 +135,6 @@ for link in links:
     for measure in client.metric.get_measures(link['metrics']['loss.rate']):
         print(measure[0].strftime('%m/%d/%Y, %H:%M:%S  '),
               round(measure[2] * 100, 2), '%')
+#'''
+
+print('\nDone.  Press CTRL+C.')
