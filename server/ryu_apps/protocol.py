@@ -336,9 +336,9 @@ class Protocol(RyuApp):
                         cos = self.requests[_req_id].cos
                         self._topology_state.update_node_specs(
                             host_id,
-                            host.get_cpu_free() - cos.get_min_cpu(),
-                            host.get_memory_free() - cos.get_min_ram(),
-                            host.get_disk_free() - cos.get_min_disk())
+                            cpu_free=host.get_cpu_free()-cos.get_min_cpu(),
+                            memory_free=host.get_memory_free()-cos.get_min_ram(),
+                            disk_free=host.get_disk_free()-cos.get_min_disk())
                     console.info('Send resource reservation acknowledgement '
                                  'to %s', ip_src)
                     self._sendp(Ether(src=DECOY_MAC, dst=eth_src)
