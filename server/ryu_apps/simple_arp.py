@@ -244,4 +244,3 @@ class SimpleARP(RyuApp):
                 ip = self._reverse_arp_table.get(mac, None)
                 self.arp_table.pop(ip, None)
                 self._reverse_arp_table.pop(mac, None)
-                self._in_ports.pop(mac, None)
