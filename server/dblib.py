@@ -1,7 +1,7 @@
 '''
     General purpose library for database operations, providing methods that 
-    serve as a facade to hide the complexities of the database-specific library 
-    used. Currently supports SQLite database library.
+    serve as a facade to hide the complexities of the DBMS-specific library 
+    used. Currently supports SQLite library.
     
     Methods:
     --------
