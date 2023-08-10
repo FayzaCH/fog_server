@@ -9,14 +9,14 @@
 
     update(obj): Update corresponding database table row from obj.
     
-    select(cls, fields, groups, as_obj, **kwargs): Select row(s) from the 
-    database table of cls.
+    select(cls, fields, groups, orders, as_obj, **kwargs): Select row(s) from 
+    the database table of cls.
 
     select_page(cls, page, page_size, fields, orders, as_obj, **kwargs): 
     Select page_size row(s) of page from the database table of cls.
 
-    as_csv(cls, fields, abs_path, _suffix, **kwargs): Convert the database 
-    table of cls to a CSV file.
+    as_csv(cls, abs_path, fields, orders, _suffix, **kwargs): Convert the 
+    database table of cls to a CSV file.
 '''
 
 
@@ -133,7 +133,7 @@ def update(obj: Model, _id: tuple = ('id',)):
 
 
 def select(cls, fields: tuple = ('*',), groups: tuple = None,
-           as_obj: bool = True, **kwargs):
+           orders: tuple = None, as_obj: bool = True, **kwargs):
     '''
         Select row(s) from the database table of cls.
 
@@ -149,6 +149,7 @@ def select(cls, fields: tuple = ('*',), groups: tuple = None,
     try:
         where, vals = _get_where_str(**kwargs)
         group_by = _get_groups_str(groups)
+        order_by = _get_orders_str(orders)
 
         event = Event()
 
@@ -156,7 +157,7 @@ def select(cls, fields: tuple = ('*',), groups: tuple = None,
         _queue.put((
             'select {} from {} {}'.format(
                 _get_fields_str(fields), _tables[cls.__name__],
-                where + group_by),
+                where + group_by + order_by),
             vals,
             event
         ))
@@ -222,19 +223,19 @@ def select_page(cls, page: int, page_size: int, fields: tuple = ('*',),
         return None
 
 
-def as_csv(cls, fields: tuple = ('*',), abs_path: str = '', _suffix: str = '',
-           **kwargs):
+def as_csv(cls, abs_path: str = '', fields: tuple = ('*',),
+           orders: tuple = None, _suffix: str = '', **kwargs):
     '''
         Convert the database table of cls to a CSV file.
 
         Filters can be applied through args and kwargs. Example:
 
-            >>> as_csv(Request, fields=('id', 'host'), host=('=', '10.0.0.2'))
+            >>> as_csv(Request, abs_path='/home/data.csv', fields=('id', 'host'), host=('=', '10.0.0.2'))
 
         Returns True if converted, False if not.
     '''
 
-    rows = select(cls, fields, as_obj=False, **kwargs)
+    rows = select(cls, fields, orders=orders, as_obj=False, **kwargs)
     if rows != None:
         try:
             if fields[0] == '*':

@@ -58,14 +58,14 @@ class Model:
 
         update(): Update corresponding database table row.
 
-        select(fields, groups, as_obj, **kwargs): Select row(s) from the 
-        corresponding database table.
+        select(cls, fields, groups, orders, as_obj, **kwargs): Select row(s) 
+        from the corresponding database table.
 
         select_page(page, page_size, fields, orders, as_obj, **kwargs): Select 
         page_size row(s) of page from the corresponding database table.
 
-        as_csv(fields, abs_path, _suffix, **kwargs): Convert the corresponding 
-        database table to a CSV file.
+        as_csv(cls, abs_path, fields, orders, _suffix, **kwargs): Convert the 
+        corresponding database table to a CSV file.
 
         columns(): Returns the list of columns in the corresponding database 
         table.
@@ -111,7 +111,7 @@ class Model:
 
     @classmethod
     def select(cls, fields: tuple = ('*',), groups: tuple = None,
-               as_obj: bool = True, **kwargs):
+               orders: tuple = None, as_obj: bool = True, **kwargs):
         '''
             Select row(s) from the corresponding database table.
 
@@ -125,7 +125,7 @@ class Model:
         '''
 
         from dblib import select
-        return select(cls, fields, groups, as_obj, **kwargs)
+        return select(cls, fields, groups, orders, as_obj, **kwargs)
 
     @classmethod
     def select_page(cls, page: int, page_size: int, fields: tuple = ('*',),
@@ -148,19 +148,20 @@ class Model:
                            **kwargs)
 
     @classmethod
-    def as_csv(cls, fields: tuple = ('*',), abs_path: str = '', **kwargs):
+    def as_csv(cls, abs_path: str = '', fields: tuple = ('*',),
+               orders: tuple = None, _suffix: str = '', **kwargs):
         '''
             Convert the corresponding database table to a CSV file.
 
             Filters can be applied through args and kwargs. Example:
 
-                >>> Request.as_csv(fields=('id', 'host'), host=('=', '10.0.0.2'))
+                >>> Request.as_csv(abs_path='/home/data.csv', fields=('id', 'host'), host=('=', '10.0.0.2'))
 
             Returns True if converted, False if not.
         '''
 
         from dblib import as_csv
-        return as_csv(cls, fields, abs_path, **kwargs)
+        return as_csv(cls, abs_path, fields, orders, _suffix, **kwargs)
 
     @classmethod
     def columns(cls):

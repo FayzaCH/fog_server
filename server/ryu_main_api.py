@@ -415,10 +415,10 @@ class RyuMainAPI(ControllerBase):
             return HTTPResponse(text=e.__class__.__name__+' '+str(e),
                                 status=HTTP_BAD_REQUEST)
 
-        Request.as_csv()
-        Attempt.as_csv()
-        Response.as_csv()
-        Path.as_csv()
+        Request.as_csv(orders=('hreq_at',))
+        Attempt.as_csv(orders=('hreq_at',))
+        Response.as_csv(orders=('timestamp',))
+        Path.as_csv(orders=('timestamp',))
 
     # for testing
     @route('test', '/topology_png')

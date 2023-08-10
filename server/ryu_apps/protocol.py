@@ -528,7 +528,6 @@ class Protocol(RyuApp):
             Response(req_id, src_ip, attempt_no, host_ip, NODE_ALGO,
                      host.get_cpu_free(), host.get_memory_free(),
                      host.get_disk_free(), timestamp).insert()
-            Response.as_csv()
             if STP_ENABLED or not ORCHESTRATOR_PATHS:
                 graph = self._topology.get_graph()
                 src = self._topology.get_by_ip(src_ip, 'node_id')
@@ -541,7 +540,8 @@ class Protocol(RyuApp):
                         Path(req_id, src_ip, attempt_no, host_ip, _path,
                              PATH_ALGO, bws, dels, jits, loss, PATH_WEIGHT,
                              None, ts).insert()
-                Path.as_csv()
+        Response.as_csv(orders=('timestamp',))
+        Path.as_csv(orders=('timestamp',))
 
     def _save_paths(self, _req_id, attempt_no, paths, weights):
         src_ip, req_id = _req_id
@@ -551,7 +551,7 @@ class Protocol(RyuApp):
                 Path(req_id, src_ip, attempt_no, host, _path, PATH_ALGO,
                      bws, dels, jits, loss, PATH_WEIGHT, weights[host][idx],
                      ts).insert()
-        Path.as_csv()
+        Path.as_csv(orders=('timestamp',))
 
     # the following methods are inspired by
     # https://github.com/muzixing/ryu/blob/master/ryu/app/network_awareness/shortest_forwarding.py
