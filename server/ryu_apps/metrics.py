@@ -208,7 +208,8 @@ class Metrics(RyuApp):
             try:
                 for node_id, node in self._topology.get_nodes().items():
                     if node.type == NodeType.SWITCH:
-                        node_id = str(f'{node_id:x}')
+                        node_id = f'{node_id:x}'
+                    node_id = str(node_id)
                     self._ensure_resource('fog_node', {
                         'id': node_id,
                         'node_id': node_id,
@@ -275,53 +276,58 @@ class Metrics(RyuApp):
 
                 for src_id, dsts in self._topology.get_links().items():
                     src = self._topology.get_node(src_id)
-                    if src and src.type == NodeType.SWITCH:
-                        src_id = str(f'{src_id:x}')
-                    for dst_id, link in dsts.items():
-                        dst = self._topology.get_node(dst_id)
-                        if dst and dst.type == NodeType.SWITCH:
-                            dst_id = str(f'{dst_id:x}')
-                        link_id = src_id + '>' + dst_id
-                        self._ensure_resource('fog_link', {
-                            'id': link_id,
-                            'src_node': src_id,
-                            'dst_node': dst_id,
-                            'src_port': link.src_port.name,
-                            'dst_port': link.dst_port.name
-                        })
+                    if src:
+                        if src.type == NodeType.SWITCH:
+                            src_id = f'{src_id:x}'
+                        src_id = str(src_id)
+                        for dst_id, link in dsts.items():
+                            dst = self._topology.get_node(dst_id)
+                            if dst:
+                                if dst.type == NodeType.SWITCH:
+                                    dst_id = f'{dst_id:x}'
+                                dst_id = str(dst_id)
+                                link_id = src_id + '>' + dst_id
+                                self._ensure_resource('fog_link', {
+                                    'id': link_id,
+                                    'src_node': src_id,
+                                    'dst_node': dst_id,
+                                    'src_port': link.src_port.name,
+                                    'dst_port': link.dst_port.name
+                                })
 
-                        t = link.get_timestamp()
-                        # gnocchi can't read inf values so we change to -1
-                        delay = link.get_delay()
-                        if delay == float('inf'):
-                            delay = -1
-                        jitter = link.get_jitter()
-                        if jitter == float('inf'):
-                            jitter = -1
-                        measures.update({
-                            link_id: {
-                                'capacity': [{
-                                    'timestamp': t,
-                                    'value': link.get_capacity()
-                                }],
-                                'bandwidth.free': [{
-                                    'timestamp': t,
-                                    'value': link.get_bandwidth()
-                                }],
-                                'delay': [{
-                                    'timestamp': t,
-                                    'value': delay
-                                }],
-                                'jitter': [{
-                                    'timestamp': t,
-                                    'value': jitter
-                                }],
-                                'loss.rate': [{
-                                    'timestamp': t,
-                                    'value': link.get_loss_rate()
-                                }]
-                            }
-                        })
+                                t = link.get_timestamp()
+                                # gnocchi can't read inf values
+                                # so we change to -1
+                                delay = link.get_delay()
+                                if delay == float('inf'):
+                                    delay = -1
+                                jitter = link.get_jitter()
+                                if jitter == float('inf'):
+                                    jitter = -1
+                                measures.update({
+                                    link_id: {
+                                        'capacity': [{
+                                            'timestamp': t,
+                                            'value': link.get_capacity()
+                                        }],
+                                        'bandwidth.free': [{
+                                            'timestamp': t,
+                                            'value': link.get_bandwidth()
+                                        }],
+                                        'delay': [{
+                                            'timestamp': t,
+                                            'value': delay
+                                        }],
+                                        'jitter': [{
+                                            'timestamp': t,
+                                            'value': jitter
+                                        }],
+                                        'loss.rate': [{
+                                            'timestamp': t,
+                                            'value': link.get_loss_rate()
+                                        }]
+                                    }
+                                })
 
             except Exception as e:
                 console.error('%s %s', e.__class__.__name__, str(e))
