@@ -20,6 +20,7 @@
 '''
 
 
+from os import makedirs
 from queue import Queue
 from threading import Thread, Event
 from sqlite3 import connect
@@ -40,6 +41,10 @@ except:
     exit()
 
 # database file
+try:
+    makedirs(ROOT_PATH + '/data', mode=0o777)
+except FileExistsError:
+    pass
 DB_PATH = ROOT_PATH + '/data/database.db'
 
 # table names

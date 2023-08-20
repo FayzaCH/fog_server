@@ -95,7 +95,7 @@ JSON request body: {
 '''
 
 
-from os import getenv
+from os import getenv, makedirs
 from time import time
 from json import load
 
@@ -114,6 +114,11 @@ from consts import ROOT_PATH, SEND_TO_ORCHESTRATOR
 from logger import console, file
 import config
 
+
+try:
+    makedirs(ROOT_PATH + '/data', mode=0o777)
+except FileExistsError:
+    pass
 
 # config
 NETWORK_ADDRESS = getenv('NETWORK_ADDRESS', None)
