@@ -53,11 +53,11 @@ class Logging(RyuApp):
         for node in list(self._topology.get_nodes().values()):
             if not header:
                 print()
-                print('           Node ID |          Label |'
+                print('              Node ID |                Label |'
                       '   CPUs   Free CPUs   RAM (MB)   Free RAM (MB)'
                       '   Disk (GB)   Free disk (GB)')
                 header = True
-            print(' {:>17} | {:>14} |'
+            print(' {:>20} | {:>20} |'
                   '   {:>4}   {:>9}   {:>8}   {:>13}'
                   '   {:>9}   {:>14}'.format(
                       node.id, node.label, node.get_cpu_count(),
@@ -88,12 +88,12 @@ class Logging(RyuApp):
                     if dst:
                         if not header:
                             print()
-                            print('            SRC -> DST            |'
+                            print('                  SRC -> DST                  |'
                                   '   Capacity (Mbps)   Bandwidth (Mbps)'
                                   '   Delay (ms)   Jitter (ms)   Loss (%)'
                                   '   |   State')
                             header = True
-                        print(' {:>14} -> {:<14} |   {:>15}   {:>16}'
+                        print(' {:>20} -> {:<20} |   {:>15}   {:>16}'
                               '   {:>10}   {:>11}   {:>8}   |   {}'.format(
                                   src.label, dst.label,
                                   round(link.get_capacity(), 2),
