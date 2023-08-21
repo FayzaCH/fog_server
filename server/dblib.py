@@ -274,19 +274,22 @@ class Connection:
             self._connection.executescript(DEFINITIONS).connection.commit()
             try:
                 with open(ROOT_PATH + '/cos.json') as f:
+                    script = ''
                     cos_list = load(f)
-                    script = 'insert or ignore into cos('
-                    for col in cos_list[0]:
-                        script += col + ','
-                    script = script[:-1] + ') values '
                     for cos in cos_list:
-                        script += '('
-                        for value in cos.values():
-                            if isinstance(value, str):
-                                value = '"' + value + '"'
-                            script += str(value) + ','
-                        script = script[:-1] + '),'
-                    script = script[:-1] + ';'
+                        cols = ''
+                        vals = ''
+                        for key in cos:
+                            cols += key + ','
+                            val = cos[key]
+                            if val == -1 or val == None:
+                                # use default value (which can be inf or 0)
+                                val = 'null'
+                            if isinstance(val, str) and val != 'null':
+                                val = '"' + val + '"'
+                            vals += str(val) + ','
+                        script += ('insert or ignore into cos(' + cols[:-1] + 
+                                   ')values(' + vals[:-1] + ');')
                     self._connection.executescript(script)
             except:
                 console.error('Could not load CoS from cos.json')

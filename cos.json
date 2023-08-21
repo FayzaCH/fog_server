@@ -8,7 +8,10 @@
         "min_bandwidth": 0,
         "max_delay": 100,
         "max_jitter": 1,
-        "max_loss_rate": 0.000001
+        "max_loss_rate": 0.000001,
+        "max_response_time": -1,
+        "min_concurrent_users": 0,
+        "min_requests_per_second": null
     },
     {
         "id": 2,
