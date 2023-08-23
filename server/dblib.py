@@ -288,7 +288,7 @@ class Connection:
                             if isinstance(val, str) and val != 'null':
                                 val = '"' + val + '"'
                             vals += str(val) + ','
-                        script += ('insert or ignore into cos(' + cols[:-1] + 
+                        script += ('insert or ignore into cos(' + cols[:-1] +
                                    ')values(' + vals[:-1] + ');')
                     self._connection.executescript(script)
             except:
@@ -351,7 +351,7 @@ def _adapt(obj: Model):
 
     if obj.__class__.__name__ is Response.__name__:
         return (obj.req_id, obj.src, obj.attempt_no, obj.host, obj.algorithm,
-                obj.cpu, obj.ram, obj.disk, obj.timestamp)
+                obj.algo_time, obj.cpu, obj.ram, obj.disk, obj.timestamp)
 
     if obj.__class__.__name__ is Path.__name__:
         path = None
@@ -370,8 +370,8 @@ def _adapt(obj: Model):
         if obj.loss_rates:
             loss_rates = str(obj.loss_rates)
         return (obj.req_id, obj.src, obj.attempt_no, obj.host, path,
-                obj.algorithm, bandwidths, delays, jitters, loss_rates,
-                obj.weight_type, obj.weight, obj.timestamp)
+                obj.algorithm, obj.algo_time, bandwidths, delays, jitters,
+                loss_rates, obj.weight_type, obj.weight, obj.timestamp)
 
 
 # decode table rows as objects
@@ -421,14 +421,15 @@ def _convert(itr: list, cls):
         if cls.__name__ is Response.__name__:
             obj = Response(
                 item[0], item[1], item[2], item[3], item[4], item[5], item[6],
-                item[7], item[8], [
+                item[7], item[8], item[9], [
                     select(Path, req_id=('=', item[0]), src=('=', item[1]),
                            attempt_no=('=', item[2]), host=('=', item[3]))])
 
         if cls.__name__ is Path.__name__:
             obj = Path(item[0], item[1], item[2], item[3], eval(item[4]),
-                       item[5], eval(item[6]), eval(item[7]), eval(item[8]),
-                       eval(item[9]), item[10], item[11], item[12])
+                       item[5], item[6], eval(item[7]), eval(item[8]),
+                       eval(item[9]), eval(item[10]), item[11], item[12],
+                       item[13])
 
         ret.append(obj)
     return ret
@@ -451,13 +452,13 @@ def _get_columns(cls):
                 'hreq_at', 'hres_at', 'rres_at', 'dres_at')
 
     if cls.__name__ is Response.__name__:
-        return ('req_id', 'src', 'attempt_no', 'host', 'algorithm', 'cpu',
-                'ram', 'disk', 'timestamp')
+        return ('req_id', 'src', 'attempt_no', 'host', 'algorithm',
+                'algo_time', 'cpu', 'ram', 'disk', 'timestamp')
 
     if cls.__name__ is Path.__name__:
         return ('req_id', 'src', 'attempt_no', 'host', 'path', 'algorithm',
-                'bandwidths', 'delays', 'jitters', 'loss_rates', 'weight_type',
-                'weight', 'timestamp')
+                'algo_time', 'bandwidths', 'delays', 'jitters', 'loss_rates',
+                'weight_type', 'weight', 'timestamp')
 
     return ()
 

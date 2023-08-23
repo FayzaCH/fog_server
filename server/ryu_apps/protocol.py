@@ -426,10 +426,12 @@ class Protocol(RyuApp):
         # to keep track of all possible hosts
         # the default strategy ALL is applied
         # the hosts are then tried first (in list) to last
+        t_start = time()
         hosts = NodeSelector(NODE_ALGO).select(self._topology, req)
+        algo_time = time() - t_start
         host_ip = ''
         if hosts:
-            spawn(self._save_hosts, _req_id, att_no, hosts)
+            spawn(self._save_hosts, _req_id, att_no, hosts, algo_time)
             my_proto.state = RREQ
             my_proto.src_mac = eth_src
             my_proto.src_ip = ip_src.ljust(IP_LEN, ' ')
@@ -437,10 +439,12 @@ class Protocol(RyuApp):
                 # to keep track of all possible paths
                 # the default strategy ALL is applied
                 # the paths are then tried best (least cost) to worst
+                t_start = time()
                 paths = PathSelector(PATH_ALGO).select(
                     self._topology, hosts, req, PATH_WEIGHT)
+                algo_time = time() - t_start
                 if paths:
-                    spawn(self._save_paths, _req_id, att_no, paths)
+                    spawn(self._save_paths, _req_id, att_no, paths, algo_time)
                     for path_dict in paths:
                         console.info('Selecting host')
                         path = path_dict['path']
@@ -483,6 +487,7 @@ class Protocol(RyuApp):
                                 # save paths for logging
                                 req.path = path
                                 req.attempts[att_no].path = path
+                                req.attempts[att_no]._algo_time = algo_time
                                 return
                             if rres[MyProtocol].state == RCAN:
                                 continue
@@ -515,12 +520,12 @@ class Protocol(RyuApp):
             console.info('No hosts available')
             req.state = HREQ
 
-    def _save_hosts(self, _req_id, attempt_no, hosts):
+    def _save_hosts(self, _req_id, attempt_no, hosts, algo_time):
         src_ip, req_id = _req_id
         timestamp = time()
         for host in hosts:
             host_ip = host.main_interface.ipv4
-            Response(req_id, src_ip, attempt_no, host_ip, NODE_ALGO,
+            Response(req_id, src_ip, attempt_no, host_ip, NODE_ALGO, algo_time,
                      host.get_cpu_free(), host.get_memory_free(),
                      host.get_disk_free(), timestamp).insert()
             if STP_ENABLED or not ORCHESTRATOR_PATHS:
@@ -533,17 +538,18 @@ class Protocol(RyuApp):
                         _path, bws, dels, jits, loss, ts = get_path(
                             path, True)
                         Path(req_id, src_ip, attempt_no, host_ip, _path,
-                             PATH_ALGO, bws, dels, jits, loss, PATH_WEIGHT,
-                             None, ts).insert()
+                             PATH_ALGO, None, bws, dels, jits, loss,
+                             PATH_WEIGHT, None, ts).insert()
         Response.as_csv(orders=('timestamp',))
         Path.as_csv(orders=('timestamp',))
 
-    def _save_paths(self, _req_id, attempt_no, paths):
+    def _save_paths(self, _req_id, attempt_no, paths, algo_time):
         src_ip, req_id = _req_id
         for path_dict in paths:
             path, bws, dels, jits, loss, ts = get_path(path_dict['path'], True)
-            Path(req_id, src_ip, attempt_no, path[-1], path, PATH_ALGO, bws,
-                 dels, jits, loss, PATH_WEIGHT, path_dict['length'], ts).insert()
+            Path(req_id, src_ip, attempt_no, path[-1], path, PATH_ALGO,
+                 algo_time, bws, dels, jits, loss, PATH_WEIGHT,
+                 path_dict['length'], ts).insert()
         Path.as_csv(orders=('timestamp',))
 
     # the following methods are inspired by

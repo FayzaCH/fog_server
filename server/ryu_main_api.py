@@ -287,7 +287,7 @@ class RyuMainAPI(ControllerBase):
         # check if resource exists
         if not self._topology.get_node(id):
             try:
-                # could be switch
+                #  could be switch
                 # so convert dpid from hexadecimal to decimal
                 id = int(id, 16)
             except (TypeError, ValueError) as e:
@@ -400,15 +400,16 @@ class RyuMainAPI(ControllerBase):
                     for response in attempt['responses']:
                         res_host = self._get_post(response, 'host', str, True)
                         Response(req_id, src, attempt_no, res_host, NODE_ALGO,
+                                 None,
                                  self._get_post(response, 'cpu', float, True),
                                  self._get_post(response, 'ram', float, True),
                                  self._get_post(response, 'disk', float, True),
-                                 self._get_post(
-                                     response, 'timestamp', float, True)).insert()
-                        path, bws, dels, jits, loss, ts = self._get_path(
-                            src, res_host, specs=True)
-                        Path(req_id, src, attempt_no, res_host,
-                             path, PATH_ALGO, bws, dels, jits, loss,
+                                 self._get_post(response, 'timestamp', float,
+                                                True)).insert()
+                        path, bws, dels, jits, loss, ts, path_time = (
+                            self._get_path(src, res_host, specs=True))
+                        Path(req_id, src, attempt_no, res_host, path,
+                             PATH_ALGO, path_time, bws, dels, jits, loss,
                              PATH_WEIGHT, None, ts).insert()
 
         except (KeyError, TypeError, ValueError) as e:
@@ -479,6 +480,7 @@ class RyuMainAPI(ControllerBase):
                   attempt_no: int = None, specs: bool = False):
         try:
             path = []
+            algo_time = None
             if STP_ENABLED or not ORCHESTRATOR_PATHS:
                 # if STP enabled
                 #   only one path, shortest path
@@ -490,6 +492,7 @@ class RyuMainAPI(ControllerBase):
                     dst = self._topology.get_by_ip(dst_ip, 'node_id')
                     if dst in graph.nodes:
                         path = shortest_path(graph, src, dst, weight=None)
+                        algo_time = None
             else:
                 # if STP disabled and orchestrator paths enabled
                 # path is from protocol
@@ -501,11 +504,16 @@ class RyuMainAPI(ControllerBase):
                         src_ip, req_id)].attempts.get(attempt_no, None)
                     if att:
                         path = att.path
+                        algo_time = att._algo_time
             if path:
+                if specs:
+                    r = list(get_path(path, specs))
+                    r.append(algo_time)
+                    return tuple(r)
                 return get_path(path, specs)
         except Exception as e:
             console.error('%s %s', e.__class__.__name__, str(e))
             file.exception(e.__class__.__name__)
         if specs:
-            return None, None, None, None, None, None
+            return None, None, None, None, None, None, None
         return None

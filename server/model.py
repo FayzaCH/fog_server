@@ -1230,6 +1230,7 @@ class Attempt(Model):
         self.rres_at = rres_at
         self.dres_at = dres_at
         self.responses = responses if responses != None else {}
+        self._algo_time = None
 
 
 class Response(Model):
@@ -1248,6 +1249,8 @@ class Response(Model):
 
         algorithm: Node selection algorithm used (SIMPLE, etc.).
 
+        algo_time: Algorithm execution time (in seconds).
+
         cpu: Amount of CPU offered by host.
 
         ram: RAM size offered by host.
@@ -1260,13 +1263,14 @@ class Response(Model):
     '''
 
     def __init__(self, req_id, src: str, attempt_no: int, host: str,
-                 algorithm: str, cpu: float, ram: float, disk: float,
-                 timestamp: float = 0, paths: list = None):
+                 algorithm: str, algo_time: float, cpu: float, ram: float, 
+                 disk: float, timestamp: float = 0, paths: list = None):
         self.req_id = req_id
         self.src = src
         self.attempt_no = attempt_no
         self.host = host
         self.algorithm = algorithm
+        self.algo_time = algo_time
         self.cpu = cpu
         self.ram = ram
         self.disk = disk
@@ -1290,7 +1294,9 @@ class Path(Model):
 
         path: Path to network application host.
 
-        algorithm: Path selection algorithm used (DIJKSTRA, LEASTCOST, etc.)
+        algorithm: Path selection algorithm used (DIJKSTRA, LEASTCOST, etc.).
+
+        algo_time: Algorithm execution time (in seconds).
 
         bandwidths: List of path links bandwidths (in Mbps).
 
@@ -1309,15 +1315,17 @@ class Path(Model):
     '''
 
     def __init__(self, req_id, src: str, attempt_no: int, host: str,
-                 path: list, algorithm: str, bandwidths: list, delays: list,
-                 jitters: list, loss_rates: list, weight_type: str,
-                 weight: float, timestamp: float = 0):
+                 path: list, algorithm: str, algo_time: float, 
+                 bandwidths: list, delays: list, jitters: list, 
+                 loss_rates: list, weight_type: str, weight: float, 
+                 timestamp: float = 0):
         self.req_id = req_id
         self.src = src
         self.attempt_no = attempt_no
         self.host = host
         self.path = path
         self.algorithm = algorithm
+        self.algo_time = algo_time
         self.bandwidths = bandwidths
         self.delays = delays
         self.jitters = jitters
