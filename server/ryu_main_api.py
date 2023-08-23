@@ -330,7 +330,8 @@ class RyuMainAPI(ControllerBase):
                         'name': self._get_post(interface, 'name', str, True),
                     }))
                     kwargs = queue[-1][1]
-                    kwargs['timestamp'] = timestamp
+                    kwargs['timestamp'] = self._get_post(
+                        interface, 'timestamp', float, ret=time())
                     kwargs['capacity'] = self._get_post(
                         interface, 'capacity', float)
                     kwargs['bandwidth_up'] = self._get_post(
@@ -433,10 +434,12 @@ class RyuMainAPI(ControllerBase):
         savefig(ROOT_PATH + '/data/' + str(time()) + '.png')
 
     def _get_post(self, json, key, type=None, required=False, ret=None):
+        if type == float:
+            type = (float, int)
         try:
             value = json[key]
             if type and not isinstance(value, type):
-                raise TypeError(key + ' must be ' + type.__name__)
+                raise TypeError(key + ' must be ' + str(type))
             return value
         except (KeyError, TypeError) as e:
             if required:
