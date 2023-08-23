@@ -285,17 +285,13 @@ class RyuMainAPI(ControllerBase):
     @route('node_specs', '/node_specs/{id}', methods=['PUT'])
     def update_node_specs(self, req, id):
         # check if resource exists
-        #  could be a host
         if not self._topology.get_node(id):
             try:
-                # or a switch
-                # (id is dpid but converted from hexadecimal to decimal)
+                # could be switch
+                # so convert dpid from hexadecimal to decimal
                 id = int(id, 16)
             except (TypeError, ValueError) as e:
-                file.exception('%s from %s', e.__class__.__name__,
-                               req.environ['REMOTE_ADDR'])
-                return HTTPResponse(text=e.__class__.__name__+' '+str(e),
-                                    status=HTTP_BAD_REQUEST)
+                pass
             if not self._topology.get_node(id):
                 return HTTPResponse(status=HTTP_NOT_FOUND)
 
