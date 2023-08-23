@@ -426,8 +426,7 @@ class Protocol(RyuApp):
         # to keep track of all possible hosts
         # the default strategy ALL is applied
         # the hosts are then tried first (in list) to last
-        hosts = NodeSelector(NODE_ALGO).select(
-            self._topology.get_nodes().values(), req)
+        hosts = NodeSelector(NODE_ALGO).select(self._topology, req)
         host_ip = ''
         if hosts:
             spawn(self._save_hosts, _req_id, att_no, hosts)
@@ -439,7 +438,7 @@ class Protocol(RyuApp):
                 # the default strategy ALL is applied
                 # the paths are then tried best (least cost) to worst
                 paths = PathSelector(PATH_ALGO).select(
-                    self._topology.get_graph(), hosts, req, PATH_WEIGHT)
+                    self._topology, hosts, req, PATH_WEIGHT)
                 if paths:
                     spawn(self._save_paths, _req_id, att_no, paths)
                     for path_dict in paths:

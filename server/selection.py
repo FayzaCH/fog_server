@@ -25,9 +25,9 @@
 
 from bisect import insort
 
-from networkx import DiGraph, single_source_dijkstra, all_simple_paths
+from networkx import single_source_dijkstra, all_simple_paths
 
-from model import Node, Request
+from model import Topology, Node, Request
 from logger import console, file
 
 
@@ -37,12 +37,12 @@ from logger import console, file
 
 
 class _NodeSelection:
-    def select(self, nodes: list, req: Request, strategy: str = ''):
+    def select(self, topo: Topology, req: Request, strategy: str = ''):
         return []
 
 
 class _SimpleNodeSelection(_NodeSelection):
-    def select(self, nodes: list, req: Request, strategy: str = ''):
+    def select(self, topo: Topology, req: Request, strategy: str = ''):
         def _check_resources(node: Node, req: Request):
             return (node != req.src  # exclude source node
                     and node.state == True
@@ -52,6 +52,8 @@ class _SimpleNodeSelection(_NodeSelection):
                          >= node.get_memory_total() * node.threshold)
                     and (node.get_disk_free() - req.get_min_disk()
                          >= node.get_disk_total() * node.threshold))
+
+        nodes = topo.get_nodes().values()
 
         if not strategy or strategy == ALL:
             return [node for node in nodes if _check_resources(node, req)]
@@ -73,13 +75,13 @@ class _SimpleNodeSelection(_NodeSelection):
 
 
 class _PathSelection:
-    def select(self, graph: DiGraph, targets: list, req: Request,
+    def select(self, topo: Topology, targets: list, req: Request,
                weight: str = '', strategy: str = ''):
         return []
 
 
 class _DijkstraPathSelection(_PathSelection):
-    def select(self, graph: DiGraph, targets: list, req: Request,
+    def select(self, topo: Topology, targets: list, req: Request,
                weight: str = '', strategy: str = ''):
         cutoff = None
         weight_func = 1
@@ -92,6 +94,7 @@ class _DijkstraPathSelection(_PathSelection):
         # networkx will always call single_source_dijkstra(...) and calculate
         # all paths between source and all targets (check networkx code)
         # so might as well get all paths and reformat them as we want
+        graph = topo.get_graph()
         lengths, paths = single_source_dijkstra(graph, req.src.id,
                                                 cutoff=cutoff,
                                                 weight=weight_func)
@@ -126,7 +129,7 @@ class _DijkstraPathSelection(_PathSelection):
 
 
 class _LeastCostPathSelection(_PathSelection):
-    def select(self, graph: DiGraph, targets: list, req: Request,
+    def select(self, topo: Topology, targets: list, req: Request,
                weight: str = '', strategy: str = ''):
         def calc_cost(path: list):
             len_path = len(path)
@@ -137,7 +140,7 @@ class _LeastCostPathSelection(_PathSelection):
             Jp = 0
             LRp = 1
             for i in range(1, len_path):
-                Pi = graph[path[i-1]][path[i]]['link']
+                Pi = topo.get_link(path[i-1], path[i])
                 cap = Pi.get_capacity()
                 Ct = min(Ct, cap)
                 free_bw = Pi.get_bandwidth()
@@ -155,6 +158,7 @@ class _LeastCostPathSelection(_PathSelection):
             CBWp = BWc / (Ct - (Bw + BWc))
             return CBWp / (CDp * CJp * CLRp)
 
+        graph = topo.get_graph()
         paths = all_simple_paths(graph, req.src.id,
                                  [target.id for target in targets])
 
@@ -253,7 +257,7 @@ class NodeSelector:
             file.exception('Requested node algorithm not found')
             self._algorithm = _SimpleNodeSelection()
 
-    def select(self, nodes: list, req: Request, strategy: str = ''):
+    def select(self, topo: Topology, req: Request, strategy: str = ''):
         '''
             Select node(s) that satisfy req through given algorithm and based
             on given strategy (ALL or FIRST). Default strategy is ALL.
@@ -261,7 +265,7 @@ class NodeSelector:
             Returns list of selected Node(s).
         '''
 
-        return self._algorithm.select(nodes, req, strategy)
+        return self._algorithm.select(topo, req, strategy)
 
 
 class PathSelector:
@@ -296,7 +300,7 @@ class PathSelector:
             file.exception('Requested path algorithm not found')
             self._algorithm = _DijkstraPathSelection()
 
-    def select(self, graph: DiGraph, targets: list, req: Request,
+    def select(self, topo: Topology, targets: list, req: Request,
                weight: str = '', strategy: str = ''):
         '''
             Select path(s) in graph from req.src to target Nodes, that satisfy
@@ -307,4 +311,4 @@ class PathSelector:
             Returns list of dicts of selected path(s) and length(s).
         '''
 
-        return self._algorithm.select(graph, targets, req, weight, strategy)
+        return self._algorithm.select(topo, targets, req, weight, strategy)
