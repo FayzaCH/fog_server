@@ -521,6 +521,7 @@ class Protocol(RyuApp):
             req.state = HREQ
 
     def _save_hosts(self, _req_id, attempt_no, hosts, algo_time):
+        print('Selected hosts:', [host.label for host in hosts])
         src_ip, req_id = _req_id
         timestamp = time()
         for host in hosts:
