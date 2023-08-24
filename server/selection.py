@@ -23,7 +23,8 @@
 '''
 
 
-from bisect import insort
+from platform import python_version
+from bisect import insort_left, bisect_left
 
 from networkx import single_source_dijkstra, all_simple_paths
 
@@ -312,3 +313,30 @@ class PathSelector:
         '''
 
         return self._algorithm.select(topo, targets, req, weight, strategy)
+
+
+# =============
+#     UTILS
+# =============
+
+
+class _KeyWrapper:
+    def __init__(self, iterable, key):
+        self.it = iterable
+        self.key = key
+
+    def __getitem__(self, i):
+        return self.key(self.it[i])
+
+    def __len__(self):
+        return len(self.it)
+
+
+def insort(a, x, key=None):
+    pyv_maj, pyv_min, _ = python_version().split('.')
+    pyv = int(pyv_maj) * 100 + int(pyv_min)
+    if pyv < 310:
+        bslindex = bisect_left(_KeyWrapper(a, key=key), key(x))
+        a.insert(bslindex, x)
+    else:
+        insort_left(a, x, key=key)
