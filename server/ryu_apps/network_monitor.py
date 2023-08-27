@@ -20,8 +20,7 @@ from ryu.controller.ofp_event import (EventOFPPortStatsReply,
                                       EventOFPPortDescStatsReply)
 from ryu.ofproto.ofproto_v1_3 import OFPP_LOCAL
 from ryu.lib.hub import spawn, sleep
-from ryu.topology.event import (EventSwitchLeave, EventPortDelete,
-                                EventLinkAdd, EventLinkDelete)
+from ryu.topology.event import EventSwitchLeave, EventPortDelete
 
 from common import *
 
@@ -62,11 +61,9 @@ class NetworkMonitor(RyuApp):
         self._switches = get_app(SWITCHES)
 
         self.port_features = {}
-        self._first_port_stats = {}
         self.port_stats = {}
         self.port_speed = {}
         self.free_bandwidth = {}
-        self._link_ports = {}
         spawn(self._monitor)
 
     def _monitor(self):
@@ -130,18 +127,12 @@ class NetworkMonitor(RyuApp):
             port_no = stat.port_no
             if port_no != OFPP_LOCAL:
                 key = (dpid, port_no)
-                data = [stat.tx_bytes, stat.rx_bytes, stat.tx_packets,
-                        stat.rx_packets, stat.tx_errors, stat.rx_errors,
-                        stat.tx_dropped, stat.rx_dropped, stat.duration_sec,
-                        stat.duration_nsec]
-
-                if key not in self._first_port_stats:
-                    self._first_port_stats[key] = data
-
-                # reset packet counters to 0
-                data[2] = data[2] - self._first_port_stats[key][2]
-                data[3] = data[3] - self._first_port_stats[key][3]
-                self._save_stats(self.port_stats, key, data, MONITOR_SAMPLES)
+                self._save_stats(
+                    self.port_stats, key,
+                    (stat.tx_bytes, stat.rx_bytes, stat.tx_packets,
+                     stat.rx_packets, stat.tx_errors, stat.rx_errors,
+                     stat.tx_dropped, stat.rx_dropped, stat.duration_sec,
+                     stat.duration_nsec), MONITOR_SAMPLES)
 
                 # =============================================================
                 # this section of the code is changed from the original
@@ -188,21 +179,6 @@ class NetworkMonitor(RyuApp):
         port_no = port.port_no
         key = (dpid, port_no)
         self.port_features.get(dpid, {}).pop(port_no, None)
-        self._first_port_stats.pop(key, None)
         self.port_stats.pop(key, None)
         self.port_speed.pop(key, None)
         self.free_bandwidth.get(dpid, {}).pop(port_no, None)
-
-    @set_ev_cls(EventLinkAdd)
-    def _link_add_handler(self, ev):
-        link = ev.link
-        src = link.src
-        dst = link.dst
-        self._link_ports[(src.dpid, src.port_no)] = (dst.dpid, dst.port_no)
-
-    @set_ev_cls(EventLinkDelete)
-    def _link_delete_handler(self, ev):
-        src = ev.link.src
-        key = (src.dpid, src.port_no)
-        self._link_ports.pop(key, None)
-        self._first_port_stats.pop(key, None)

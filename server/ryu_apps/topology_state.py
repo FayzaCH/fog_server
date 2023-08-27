@@ -8,10 +8,10 @@ from common import *
 
 class TopologyState(RyuApp):
     '''
-        Ryu app for updating specs of topology's nodes, interfaces and links 
+        Ryu app for updating specs of topology's nodes, interfaces and links
         by injecting most recent measures collected by various monitoring apps
-        (NetworkMonitor, NetworkDelayDetector, DelayMonitor), as well as 
-        measures received from clients through REST API, into data structures 
+        (NetworkMonitor, NetworkDelayDetector, DelayMonitor), as well as
+        measures received from clients through REST API, into data structures
         in Topology app.
 
         Requirements:
@@ -26,24 +26,24 @@ class TopologyState(RyuApp):
 
         Methods:
         --------
-        update_node_specs(id, cpu_count, cpu_free, memory_total, memory_free, 
-        disk_total, disk_free, timestamp): Update specs (CPU, RAM, disk) of 
+        update_node_specs(id, cpu_count, cpu_free, memory_total, memory_free,
+        disk_total, disk_free, timestamp): Update specs (CPU, RAM, disk) of
         node identified by ID at given timestamp.
 
         update_interface_specs(node_id, ref, bandwidth_up, bandwidth_down,
-        tx_packets, rx_packets, timestamp): Update specs (bandwidth_up, 
-        bandwidth_down, tx_packets, rx_packets) of interface identified by ref 
-        (which can be name or number) and attached to node identified by 
+        tx_packets, rx_packets, timestamp): Update specs (bandwidth_up,
+        bandwidth_down, tx_packets, rx_packets) of interface identified by ref
+        (which can be name or number) and attached to node identified by
         node_id at given timestamp.
 
-        update_link_specs(src_id, dst_id, bandwidth, delay, jitter, loss_rate, 
-        timestamp): Update specs (bandwidth, delay, jitter, loss rate) of link 
+        update_link_specs(src_id, dst_id, bandwidth, delay, jitter, loss_rate,
+        timestamp): Update specs (bandwidth, delay, jitter, loss rate) of link
         between nodes identified by src_id and dst_id at given timestamp.
 
-        update_link_specs_at_port(self, src_id, port_ref, bandwidth_up, 
-        loss_rate, tx_packets, timestamp): Update specs (bandwidth, delay, 
-        jitter, loss rate) of link connected to port identified by port_ref 
-        (which can be name or number) and attached to node identified by src_id 
+        update_link_specs_at_port(self, src_id, port_ref, bandwidth_up,
+        loss_rate, tx_packets, timestamp): Update specs (bandwidth, delay,
+        jitter, loss rate) of link connected to port identified by port_ref
+        (which can be name or number) and attached to node identified by src_id
         at given timestamp.
     '''
 
@@ -57,19 +57,25 @@ class TopologyState(RyuApp):
         self._delay_monitor = get_app(DELAY_MONITOR)
 
         self._block_app_update = {}
-        self._first_port_stats = {}
+        self._port_stats = {}
         spawn(self._update_delay_jitter)
         spawn(self._update_bandwidth_loss_rate)
         spawn(self._update_node_state)
         spawn(self._update_link_state)
         spawn(self._check_update)
 
+    def _save_stats(self, _dict, key, value, length):
+        _dict.setdefault(key, [])
+        _dict[key].append(value)
+        if len(_dict[key]) > length:
+            _dict[key].pop(0)
+
     def update_node_specs(self, id, cpu_count: int = None,
                           cpu_free: float = None, memory_total: float = None,
                           memory_free: float = None, disk_total: float = None,
                           disk_free: float = None, timestamp: float = 0):
         '''
-            Update specs (CPU, RAM, disk) of node identified by ID at given 
+            Update specs (CPU, RAM, disk) of node identified by ID at given
             timestamp (default, 0, means current timestamp).
 
             Returns True if updated, False if not.
@@ -95,25 +101,23 @@ class TopologyState(RyuApp):
             return True
         return False
 
-    def update_interface_specs(self, node_id, ref, capacity: float = None,
+    def update_interface_specs(self, node_id, name: str,
+                               capacity: float = None,
                                bandwidth_up: float = None,
                                bandwidth_down: float = None,
                                tx_packets: int = None, rx_packets: int = None,
                                timestamp: float = 0):
         '''
-            Update specs (capacity, bandwidth_up, bandwidth_down, tx_packets, 
-            rx_packets) of interface identified by name and attached to node 
+            Update specs (capacity, bandwidth_up, bandwidth_down, tx_packets,
+            rx_packets) of interface identified by name and attached to node
             identified by node_id at given timestamp.
         '''
 
-        interface = self._topology.get_interface(node_id, ref)
+        interface = self._topology.get_interface(node_id, name)
         if interface:
-            key = (node_id, ref)
-            # to stop specs from updating through ryu apps
+            key = (node_id, name)
+            # stop specs from updating through ryu apps
             self._block_app_update[key] = time()
-            # to reset to 0 tx and rx counters
-            if key not in self._first_port_stats:
-                self._first_port_stats[key] = (tx_packets, rx_packets)
             interface.set_timestamp(timestamp)
             # None values are used to differentiate from 0
             # None means don't update
@@ -124,21 +128,20 @@ class TopologyState(RyuApp):
             if bandwidth_down != None:
                 interface.set_bandwidth_down(bandwidth_down)
             if tx_packets != None:
-                interface.set_tx_packets(tx_packets
-                                         - self._first_port_stats[key][0])
+                interface.set_tx_packets(tx_packets)
             if rx_packets != None:
-                interface.set_rx_packets(rx_packets
-                                         - self._first_port_stats[key][1])
-            self.update_link_specs_at_port(node_id, ref, capacity,
-                                           bandwidth_up, tx_packets, timestamp)
+                interface.set_rx_packets(rx_packets)
+            self._update_link_specs_at_port(node_id, name, capacity,
+                                            bandwidth_up, tx_packets,
+                                            rx_packets, timestamp)
 
     def update_link_specs(self, src_id, dst_id, capacity: float = None,
                           bandwidth: float = None, delay: float = None,
                           jitter: float = None, loss_rate: float = None,
                           timestamp: float = 0):
         '''
-            Update specs (capacity, bandwidth, delay, jitter, loss rate) of 
-            link between nodes identified by src_id and dst_id at given 
+            Update specs (capacity, bandwidth, delay, jitter, loss rate) of
+            link between nodes identified by src_id and dst_id at given
             timestamp.
 
             Returns True if updated, False if not.
@@ -162,21 +165,26 @@ class TopologyState(RyuApp):
             return True
         return False
 
-    def update_link_specs_at_port(self, src_id, port_ref,
-                                  capacity: float = None,
-                                  bandwidth_up: float = None,
-                                  tx_packets: int = None,
-                                  timestamp: float = 0):
+    def _update_link_specs_at_port(self, src_id, port_name: str,
+                                   capacity: float = None,
+                                   bandwidth_up: float = None,
+                                   tx_packets: int = None,
+                                   rx_packets: int = None,
+                                   timestamp: float = 0):
         '''
-            Update specs (capacity, bandwidth, delay, jitter, loss rate) of 
-            link connected to port identified by port_ref (which can be name 
-            or number) and attached to node identified by src_id at given 
+            Update specs (capacity, bandwidth, delay, jitter, loss rate) of
+            link connected to port identified by port_ref (which can be name
+            or number) and attached to node identified by src_id at given
             timestamp.
 
             Returns True if updated, False if not.
         '''
 
-        link = self._topology.get_link_at_port(src_id, port_ref)
+        key = (src_id, port_name)
+        if tx_packets != None and rx_packets != None:
+            self._save_stats(self._port_stats, key, (tx_packets, rx_packets),
+                             MONITOR_SAMPLES)
+        link = self._topology.get_link_at_port(src_id, port_name)
         if link:
             dst = link.dst_port
             if capacity != None:
@@ -190,8 +198,12 @@ class TopologyState(RyuApp):
                     min(bandwidth_up, dst.get_bandwidth_down()))
             if tx_packets != None:
                 try:
+                    re_tx_packets = (tx_packets
+                                     - self._port_stats[key][0][0])
+                    re_rx_packets = (dst.get_rx_packets()
+                                     - self._port_stats[key][0][1])
                     link.set_loss_rate(max(
-                        0, (tx_packets - dst.get_rx_packets()) / tx_packets))
+                        0, (re_tx_packets - re_rx_packets) / re_tx_packets))
                 except:
                     link.set_loss_rate(1)
             link.set_timestamp(timestamp)
@@ -234,22 +246,26 @@ class TopologyState(RyuApp):
                 for port_no, (bw_up, bw_down) in list(ports.items()):
                     port = self._topology.get_interface(dpid, port_no)
                     if port:
-                        key = (dpid, port.name)
+                        name = port.name
+                        key = (dpid, name)
                         if key not in self._block_app_update:
                             feature = features.get(dpid, {}).get(port_no, None)
                             capacity = feature[2] / 10**3 if feature else None
                             port.set_capacity(capacity)
                             port.set_bandwidth_up(bw_up)
                             port.set_bandwidth_down(bw_down)
-                            stat = port_stats.get(key, None)
+                            stat = port_stats.get((dpid, port_no), None)
                             if stat:
                                 tx_packets = stat[-1][2]
+                                rx_packets = stat[-1][3]
                                 port.set_tx_packets(tx_packets)
-                                port.set_rx_packets(stat[-1][3])
+                                port.set_rx_packets(rx_packets)
                             else:
                                 tx_packets = None
-                            self.update_link_specs_at_port(
-                                dpid, port_no, capacity, bw_up, tx_packets)
+                                rx_packets = None
+                            self._update_link_specs_at_port(
+                                dpid, name, capacity, bw_up, tx_packets,
+                                rx_packets)
 
     def _update_node_state(self):
         # TODO update node state
