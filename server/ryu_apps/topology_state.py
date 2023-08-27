@@ -282,9 +282,6 @@ class TopologyState(RyuApp):
         while True:
             sleep(period)
             now = time()
-            for node_id, ports in list(self._block_app_update.items()):
-                for port, timestamp in list(ports.items()):
-                    if now - timestamp > period:
-                        self._block_app_update[node_id].pop(port, None)
-                        if not self._block_app_update[node_id]:
-                            self._block_app_update.pop(node_id)
+            for key, timestamp in list(self._block_app_update.items()):
+                if now - timestamp > period:
+                    self._block_app_update.pop(key, None)
