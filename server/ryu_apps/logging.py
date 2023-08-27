@@ -44,6 +44,9 @@ class Logging(RyuApp):
             self.show_node_stats()
             self.show_link_stats()
 
+    def _round_down(self, x: float, n: int):
+        return x // 10 ** (0 - n) / 10 ** n
+
     def show_node_stats(self):
         '''
             Print nodes (ID, label) and their specs (CPU, RAM, disk) 
@@ -65,11 +68,11 @@ class Logging(RyuApp):
                   '   {:>4}   {:>9}   {:>8}   {:>13}'
                   '   {:>9}   {:>14}'.format(
                       node_id, node.label, node.get_cpu_count(),
-                      round(node.get_cpu_free(), 2),
+                      self._round_down(node.get_cpu_free(), 2),
                       round(node.get_memory_total(), 2),
-                      round(node.get_memory_free(), 2),
+                      self._round_down(node.get_memory_free(), 2),
                       round(node.get_disk_total(), 2),
-                      round(node.get_disk_free(), 2)))
+                      self._round_down(node.get_disk_free(), 2)))
         if header:
             print()
 
@@ -101,10 +104,12 @@ class Logging(RyuApp):
                               '   {:>10}   {:>11}   {:>8}   |   {}'.format(
                                   src.label, dst.label,
                                   round(link.get_capacity(), 2),
-                                  round(link.get_bandwidth(), 2),
-                                  round(link.get_delay() * 1000, 2),
-                                  round(link.get_jitter() * 1000, 2),
-                                  round(link.get_loss_rate() * 100, 2),
+                                  self._round_down(link.get_bandwidth(), 2),
+                                  self._round_down(link.get_delay() * 1000, 2),
+                                  self._round_down(
+                                      link.get_jitter() * 1000, 2),
+                                  self._round_down(
+                                      link.get_loss_rate() * 100, 2),
                                   _states.get(link.state, '?')))
         if header:
             print()
