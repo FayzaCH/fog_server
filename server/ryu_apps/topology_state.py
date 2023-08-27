@@ -123,8 +123,7 @@ class TopologyState(RyuApp):
             if rx_packets != None:
                 interface.set_rx_packets(rx_packets)
             self.update_link_specs_at_port(node_id, ref, capacity,
-                                           bandwidth_up, None,
-                                           tx_packets, timestamp)
+                                           bandwidth_up, tx_packets, timestamp)
 
     def update_link_specs(self, src_id, dst_id, capacity: float = None,
                           bandwidth: float = None, delay: float = None,
@@ -159,7 +158,6 @@ class TopologyState(RyuApp):
     def update_link_specs_at_port(self, src_id, port_ref,
                                   capacity: float = None,
                                   bandwidth_up: float = None,
-                                  loss_rate: float = None,
                                   tx_packets: int = None,
                                   timestamp: float = 0):
         '''
@@ -183,9 +181,7 @@ class TopologyState(RyuApp):
                 # down bandwidth
                 link.set_bandwidth(
                     min(bandwidth_up, dst.get_bandwidth_down()))
-            if loss_rate != None:
-                link.set_loss_rate(loss_rate)
-            elif tx_packets != None:
+            if tx_packets != None:
                 try:
                     link.set_loss_rate(max(
                         0, (tx_packets - dst.get_rx_packets()) / tx_packets))
@@ -229,20 +225,21 @@ class TopologyState(RyuApp):
 
             features = self._network_monitor.port_features
             bandwidths = self._network_monitor.free_bandwidth
-            #loss_rates = self._network_monitor._loss_rate_at_port
             port_stats = self._network_monitor.port_stats
             for dpid, ports in list(bandwidths.items()):
                 for port_no, (bw_up, bw_down) in list(ports.items()):
                     port = self._topology.get_interface(dpid, port_no)
                     if port:
-                        if not self._block_app_update.get(dpid, {}).get(port.name, None):
+                        if not self._block_app_update.get(
+                                dpid, {}).get(port.name, None):
                             feature = features.get(dpid, {}).get(port_no, None)
                             capacity = feature[2] / 10**3 if feature else None
                             port.set_capacity(capacity)
+                            port.set_bandwidth_up(bw_up)
+                            port.set_bandwidth_down(bw_down)
                         else:
                             capacity = None
-                        port.set_bandwidth_up(bw_up)
-                        port.set_bandwidth_down(bw_down)
+                            bw_up = None
                         key = (dpid, port_no)
                         stat = port_stats.get(key, None)
                         tx_packets = stat[-1][2] if stat else None
@@ -251,9 +248,7 @@ class TopologyState(RyuApp):
                             port.set_tx_packets(tx_packets)
                             port.set_rx_packets(rx_packets)
                         self.update_link_specs_at_port(
-                            dpid, port_no, capacity, bw_up,
-                            #loss_rates.get(key, None), tx_packets)
-                            None, tx_packets)
+                            dpid, port_no, capacity, bw_up, tx_packets)
 
     def _update_node_state(self):
         # TODO update node state
