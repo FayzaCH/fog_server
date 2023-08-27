@@ -57,6 +57,7 @@ class TopologyState(RyuApp):
         self._delay_monitor = get_app(DELAY_MONITOR)
 
         self._block_app_update = {}
+        self._first_port_stats = {}
         spawn(self._update_delay_jitter)
         spawn(self._update_bandwidth_loss_rate)
         spawn(self._update_node_state)
@@ -107,21 +108,27 @@ class TopologyState(RyuApp):
 
         interface = self._topology.get_interface(node_id, ref)
         if interface:
+            key = (node_id, ref)
+            # to stop specs from updating through ryu apps
+            self._block_app_update[key] = time()
+            # to reset to 0 tx and rx counters
+            if key not in self._first_port_stats:
+                self._first_port_stats[key] = (tx_packets, rx_packets)
             interface.set_timestamp(timestamp)
             # None values are used to differentiate from 0
             # None means don't update
             if capacity != None:
                 interface.set_capacity(capacity)
-                self._block_app_update.setdefault(node_id, {})
-                self._block_app_update[node_id][ref] = time()
             if bandwidth_up != None:
                 interface.set_bandwidth_up(bandwidth_up)
             if bandwidth_down != None:
                 interface.set_bandwidth_down(bandwidth_down)
             if tx_packets != None:
-                interface.set_tx_packets(tx_packets)
+                interface.set_tx_packets(tx_packets
+                                         - self._first_port_stats[key][0])
             if rx_packets != None:
-                interface.set_rx_packets(rx_packets)
+                interface.set_rx_packets(rx_packets
+                                         - self._first_port_stats[key][1])
             self.update_link_specs_at_port(node_id, ref, capacity,
                                            bandwidth_up, tx_packets, timestamp)
 
@@ -196,7 +203,6 @@ class TopologyState(RyuApp):
         # and delay_monitor
         while True:
             sleep(MONITOR_PERIOD)
-
             delays = self._network_delay_detector.delay
             jitters = self._network_delay_detector.jitter
             for src_id, dsts in list(delays.items()):
@@ -204,7 +210,6 @@ class TopologyState(RyuApp):
                     self.update_link_specs(
                         src_id, dst_id, delay=delay,
                         jitter=jitters.get(src_id, {}).get(dst_id, None))
-
             delays = self._delay_monitor._mac_delay
             jitters = self._delay_monitor._mac_jitter
             for mac, delay in list(delays.items()):
@@ -222,33 +227,29 @@ class TopologyState(RyuApp):
         # update link capacity, bandwidth and loss rate from network_monitor
         while True:
             sleep(MONITOR_PERIOD)
-
             features = self._network_monitor.port_features
             bandwidths = self._network_monitor.free_bandwidth
             port_stats = self._network_monitor.port_stats
             for dpid, ports in list(bandwidths.items()):
                 for port_no, (bw_up, bw_down) in list(ports.items()):
-                    port = self._topology.get_interface(dpid, port_no)
-                    if port:
-                        if not self._block_app_update.get(
-                                dpid, {}).get(port.name, None):
+                    key = (dpid, port_no)
+                    if key not in self._block_app_update:
+                        port = self._topology.get_interface(dpid, port_no)
+                        if port:
                             feature = features.get(dpid, {}).get(port_no, None)
                             capacity = feature[2] / 10**3 if feature else None
                             port.set_capacity(capacity)
                             port.set_bandwidth_up(bw_up)
                             port.set_bandwidth_down(bw_down)
-                        else:
-                            capacity = None
-                            bw_up = None
-                        key = (dpid, port_no)
-                        stat = port_stats.get(key, None)
-                        tx_packets = stat[-1][2] if stat else None
-                        rx_packets = stat[-1][3] if stat else None
-                        if stat:
-                            port.set_tx_packets(tx_packets)
-                            port.set_rx_packets(rx_packets)
-                        self.update_link_specs_at_port(
-                            dpid, port_no, capacity, bw_up, tx_packets)
+                            stat = port_stats.get(key, None)
+                            if stat:
+                                tx_packets = stat[-1][2]
+                                port.set_tx_packets(tx_packets)
+                                port.set_rx_packets(stat[-1][3])
+                            else:
+                                tx_packets = None
+                            self.update_link_specs_at_port(
+                                dpid, port_no, capacity, bw_up, tx_packets)
 
     def _update_node_state(self):
         # TODO update node state

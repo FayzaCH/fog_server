@@ -1,6 +1,7 @@
 from ryu.base.app_manager import RyuApp
 from ryu.lib.hub import spawn, sleep
 
+from model import NodeType
 from common import *
 import config
 
@@ -51,6 +52,9 @@ class Logging(RyuApp):
 
         header = False
         for node in list(self._topology.get_nodes().values()):
+            node_id = node.id
+            if node.type == NodeType.SWITCH:
+                node_id = f'{node.id:x}'
             if not header:
                 print()
                 print('              Node ID |                Label |'
@@ -60,7 +64,7 @@ class Logging(RyuApp):
             print(' {:>20} | {:>20} |'
                   '   {:>4}   {:>9}   {:>8}   {:>13}'
                   '   {:>9}   {:>14}'.format(
-                      node.id, node.label, node.get_cpu_count(),
+                      node_id, node.label, node.get_cpu_count(),
                       round(node.get_cpu_free(), 2),
                       round(node.get_memory_total(), 2),
                       round(node.get_memory_free(), 2),
@@ -101,6 +105,6 @@ class Logging(RyuApp):
                                   round(link.get_delay() * 1000, 2),
                                   round(link.get_jitter() * 1000, 2),
                                   round(link.get_loss_rate() * 100, 2),
-                                  _states.get(link.state, 'N/A')))
+                                  _states.get(link.state, '?')))
         if header:
             print()
