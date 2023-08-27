@@ -200,11 +200,11 @@ class TopologyState(RyuApp):
                 try:
                     re_tx_packets = (tx_packets
                                      - self._port_stats[key][0][0])
-                    re_rx_packets = (
-                        dst.get_rx_packets()
-                        - self._port_stats[
-                            (self._topology.get_dst_at_port(
-                                src_id, port_name).id, dst.name)][0][1])
+                    dst_key = (
+                        self._topology.get_dst_at_port(src_id, port_name).id,
+                        dst.name)
+                    re_rx_packets = (dst.get_rx_packets()
+                                     - self._port_stats[dst_key][0][1])
                     link.set_loss_rate(max(
                         0, (re_tx_packets - re_rx_packets) / re_tx_packets))
                 except:
