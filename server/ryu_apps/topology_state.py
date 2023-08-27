@@ -232,10 +232,10 @@ class TopologyState(RyuApp):
             port_stats = self._network_monitor.port_stats
             for dpid, ports in list(bandwidths.items()):
                 for port_no, (bw_up, bw_down) in list(ports.items()):
-                    key = (dpid, port_no)
-                    if key not in self._block_app_update:
-                        port = self._topology.get_interface(dpid, port_no)
-                        if port:
+                    port = self._topology.get_interface(dpid, port_no)
+                    if port:
+                        key = (dpid, port.name)
+                        if key not in self._block_app_update:
                             feature = features.get(dpid, {}).get(port_no, None)
                             capacity = feature[2] / 10**3 if feature else None
                             port.set_capacity(capacity)
