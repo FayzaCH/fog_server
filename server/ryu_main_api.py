@@ -338,6 +338,13 @@ class RyuMainAPI(ControllerBase):
                         interface, 'tx_packets', int)
                     kwargs['rx_packets'] = self._get_post(
                         interface, 'rx_packets', int)
+                    kwargs['tx_bytes'] = self._get_post(
+                        interface, 'tx_bytes', int)
+                    kwargs['rx_bytes'] = self._get_post(
+                        interface, 'rx_bytes', int)
+
+                    kwargs['_recv_bps'] = self._get_post(
+                        interface, '_recv_bps', float)
 
         except (KeyError, TypeError, ValueError) as e:
             file.exception('%s from %s', e.__class__.__name__,
@@ -423,6 +430,75 @@ class RyuMainAPI(ControllerBase):
         Response.as_csv(orders=('timestamp',))
         Path.as_csv(orders=('timestamp',))
 
+    @route('iperf3', '/iperf3/{node_id}', methods=['POST'])
+    def add_iperf3_listeners(self, req, node_id):
+        # check if resource exists
+        node = self._topology.get_node(node_id)
+        if not node:
+            try:
+                # could be switch
+                # so convert dpid from hexadecimal to decimal
+                node_id = int(node_id, 16)
+            except (TypeError, ValueError) as e:
+                pass
+            node = self._topology.get_node(node_id)
+            if not node:
+                return HTTPResponse(text='Node not found',
+                                    status=HTTP_NOT_FOUND)
+        for iface, ip in req.json.items():
+            if iface in node.interfaces:
+                node.interfaces[iface]._iperf3_ip = ip
+            elif iface == '_default_iperf3_ip':
+                node._default_iperf3_ip = ip
+
+    @route('iperf3', '/iperf3/{node_id}/{iface}', methods=['GET'])
+    def get_iperf3_target(self, _, node_id, iface):
+        # check if resource exists
+        node = self._topology.get_node(node_id)
+        if not node:
+            try:
+                # could be switch
+                # so convert dpid from hexadecimal to decimal
+                node_id = int(node_id, 16)
+            except (TypeError, ValueError) as e:
+                pass
+            node = self._topology.get_node(node_id)
+            if not node:
+                return HTTPResponse(text='Node not found',
+                                    status=HTTP_NOT_FOUND)
+        if iface not in node.interfaces:
+            return HTTPResponse(text='interface not found',
+                                status=HTTP_NOT_FOUND)
+        link = self._topology.get_link_at_port(node_id, iface)
+        if link:
+            if link.dst_port._iperf3_ip:
+                return HTTPResponse(content_type='application/json',
+                                    json={'ip': link.dst_port._iperf3_ip})
+            else:
+                dst = self._topology.get_dst_at_port(node_id, iface)
+                if dst and dst._default_iperf3_ip:
+                    return HTTPResponse(content_type='application/json',
+                                        json={'ip': node._default_iperf3_ip})
+
+    @route('iperf3', '/iperf3/{node_id}', methods=['DELETE'])
+    def delete_iperf3_listeners(self, _, node_id):
+        # check if resource exists
+        node = self._topology.get_node(node_id)
+        if not node:
+            try:
+                # could be switch
+                # so convert dpid from hexadecimal to decimal
+                node_id = int(node_id, 16)
+            except (TypeError, ValueError) as e:
+                pass
+            node = self._topology.get_node(node_id)
+            if not node:
+                return HTTPResponse(text='Node not found',
+                                    status=HTTP_NOT_FOUND)
+        node._default_iperf3_ip = None
+        for _, iface in node.interfaces.items():
+            iface._iperf3_ip = None
+
     # for testing
     @route('test', '/topology_png')
     def topology(self, _):
@@ -474,7 +550,10 @@ class RyuMainAPI(ControllerBase):
             kwargs.get('bandwidth_down', None),
             kwargs.get('tx_packets', None),
             kwargs.get('rx_packets', None),
-            kwargs.get('timestamp', time()))
+            kwargs.get('tx_bytes', None),
+            kwargs.get('rx_bytes', None),
+            kwargs.get('timestamp', time()),
+            kwargs.get('_recv_bps', None))
 
     def _get_path(self, src_ip: str, dst_ip: str, req_id: str = None,
                   attempt_no: int = None, specs: bool = False):

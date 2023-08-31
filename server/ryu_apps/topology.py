@@ -110,8 +110,25 @@ class Topology(RyuApp, Topo):
 
         self._switches = get_app(SWITCHES)
 
-        spawn(self._add_host_links)
         spawn(self._check_clients)
+        # if host links are not detected
+        # spawn(self._add_host_links)
+
+    def add_interface(self, node_id, name: str, num: int = None,
+                      mac: str = None, ipv4: str = None):
+        if super().add_interface(node_id, name, num, mac, ipv4):
+            dpid = self.get_by_mac(mac, 'dpid')
+            if self.get_node(dpid):
+                port_name = self.get_by_mac(mac, 'port_name')
+                if not self.get_link(node_id, dpid):
+                    self.add_link(
+                        node_id, dpid, name, port_name, False)
+                if not self.get_link(dpid, node_id):
+                    self.add_link(
+                        dpid, node_id, port_name, name, False)
+            return True
+        else:
+            return False
 
     @set_ev_cls(EventSwitchEnter)
     def _switch_enter_handler(self, ev):

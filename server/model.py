@@ -189,17 +189,24 @@ class InterfaceSpecs(Model):
 
         rx_packets: Number of received packets. Default is 0.
 
+        tx_bytes: Number of transmitted bytes. Default is 0.
+
+        rx_bytes: Number of received bytes. Default is 0.
+
         timestamp: Default is time of update.
     '''
 
     def __init__(self, capacity: float = 0, bandwidth_up: float = 0,
                  bandwidth_down: float = 0, tx_packets: int = 0,
-                 rx_packets: int = 0, timestamp: float = 0):
+                 rx_packets: int = 0, tx_bytes: int = 0, rx_bytes: int = 0,
+                 timestamp: float = 0):
         self.capacity = capacity
         self.bandwidth_up = bandwidth_up
         self.bandwidth_down = bandwidth_down
         self.tx_packets = tx_packets
         self.rx_packets = rx_packets
+        self.tx_bytes = tx_bytes
+        self.rx_bytes = rx_bytes
         self.timestamp = timestamp if timestamp else time()
 
 
@@ -230,6 +237,8 @@ class Interface(Model):
         self.mac = mac
         self.ipv4 = ipv4
         self.specs = specs if specs else InterfaceSpecs()
+        self._iperf3_ip = None
+        self._recv_bps = None
 
     def as_dict(self, flat: bool = False, _prefix: str = ''):
         d = super().as_dict(flat, _prefix)
@@ -249,21 +258,21 @@ class Interface(Model):
     def get_capacity(self):
         return self.specs.capacity
 
-    def set_capacity(self, capacity: float = 0):
+    def set_capacity(self, capacity: float = 0.0):
         self.specs.capacity = capacity
         self.set_timestamp()
 
     def get_bandwidth_up(self):
         return self.specs.bandwidth_up
 
-    def set_bandwidth_up(self, bandwidth_up: float = 0):
+    def set_bandwidth_up(self, bandwidth_up: float = 0.0):
         self.specs.bandwidth_up = bandwidth_up
         self.set_timestamp()
 
     def get_bandwidth_down(self):
         return self.specs.bandwidth_down
 
-    def set_bandwidth_down(self, bandwidth_down: float = 0):
+    def set_bandwidth_down(self, bandwidth_down: float = 0.0):
         self.specs.bandwidth_down = bandwidth_down
         self.set_timestamp()
 
@@ -281,10 +290,24 @@ class Interface(Model):
         self.specs.rx_packets = rx_packets
         self.set_timestamp()
 
+    def get_tx_bytes(self):
+        return self.specs.tx_bytes
+
+    def set_tx_bytes(self, tx_bytes: int = 0):
+        self.specs.tx_bytes = tx_bytes
+        self.set_timestamp()
+
+    def get_rx_bytes(self):
+        return self.specs.rx_bytes
+
+    def set_rx_bytes(self, rx_bytes: int = 0):
+        self.specs.rx_bytes = rx_bytes
+        self.set_timestamp()
+
     def get_timestamp(self):
         return self.specs.timestamp
 
-    def set_timestamp(self, timestamp: float = 0):
+    def set_timestamp(self, timestamp: float = 0.0):
         self.specs.timestamp = timestamp if timestamp else time()
 
 
@@ -381,7 +404,8 @@ class Node(Model):
         self.main_interface = None  # Interface object
         self.specs = specs if specs else NodeSpecs()
         # float (gross value; to get percentage, multiply by 100)
-        self.threshold = 1
+        self.threshold = 1.0
+        self._default_iperf3_ip = None
 
     def as_dict(self, flat: bool = False):
         d = super().as_dict(flat)
@@ -1263,7 +1287,7 @@ class Response(Model):
     '''
 
     def __init__(self, req_id, src: str, attempt_no: int, host: str,
-                 algorithm: str, algo_time: float, cpu: float, ram: float, 
+                 algorithm: str, algo_time: float, cpu: float, ram: float,
                  disk: float, timestamp: float = 0, paths: list = None):
         self.req_id = req_id
         self.src = src
@@ -1315,9 +1339,9 @@ class Path(Model):
     '''
 
     def __init__(self, req_id, src: str, attempt_no: int, host: str,
-                 path: list, algorithm: str, algo_time: float, 
-                 bandwidths: list, delays: list, jitters: list, 
-                 loss_rates: list, weight_type: str, weight: float, 
+                 path: list, algorithm: str, algo_time: float,
+                 bandwidths: list, delays: list, jitters: list,
+                 loss_rates: list, weight_type: str, weight: float,
                  timestamp: float = 0):
         self.req_id = req_id
         self.src = src

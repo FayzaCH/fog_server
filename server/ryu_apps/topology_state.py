@@ -58,6 +58,7 @@ class TopologyState(RyuApp):
 
         self._block_app_update = {}
         self._port_stats = {}
+        self._iperf3_update = {}
         spawn(self._update_delay_jitter)
         spawn(self._update_bandwidth_loss_rate)
         spawn(self._update_node_state)
@@ -106,11 +107,12 @@ class TopologyState(RyuApp):
                                bandwidth_up: float = None,
                                bandwidth_down: float = None,
                                tx_packets: int = None, rx_packets: int = None,
-                               timestamp: float = 0):
+                               tx_bytes: int = None, rx_bytes: int = None,
+                               timestamp: float = 0, _recv_bps: float = None):
         '''
             Update specs (capacity, bandwidth_up, bandwidth_down, tx_packets,
-            rx_packets) of interface identified by name and attached to node
-            identified by node_id at given timestamp.
+            rx_packets, tx_bytes, rx_bytes) of interface identified by name 
+            and attached to node identified by node_id at given timestamp.
         '''
 
         interface = self._topology.get_interface(node_id, name)
@@ -121,19 +123,24 @@ class TopologyState(RyuApp):
             interface.set_timestamp(timestamp)
             # None values are used to differentiate from 0
             # None means don't update
-            if capacity != None:
-                interface.set_capacity(capacity)
-            if bandwidth_up != None:
-                interface.set_bandwidth_up(bandwidth_up)
-            if bandwidth_down != None:
-                interface.set_bandwidth_down(bandwidth_down)
+            if key not in self._iperf3_update:
+                if capacity != None:
+                    interface.set_capacity(capacity)
+                if bandwidth_up != None:
+                    interface.set_bandwidth_up(bandwidth_up)
+                if bandwidth_down != None:
+                    interface.set_bandwidth_down(bandwidth_down)
             if tx_packets != None:
                 interface.set_tx_packets(tx_packets)
             if rx_packets != None:
                 interface.set_rx_packets(rx_packets)
-            self._update_link_specs_at_port(node_id, name, capacity,
-                                            bandwidth_up, tx_packets,
-                                            rx_packets, timestamp)
+            if tx_bytes != None:
+                interface.set_tx_bytes(tx_bytes)
+            if rx_bytes != None:
+                interface.set_rx_bytes(rx_bytes)
+            self._update_link_specs_at_port(node_id, name, tx_packets,
+                                            rx_packets, tx_bytes, rx_bytes,
+                                            timestamp, _recv_bps)
 
     def update_link_specs(self, src_id, dst_id, capacity: float = None,
                           bandwidth: float = None, delay: float = None,
@@ -166,11 +173,12 @@ class TopologyState(RyuApp):
         return False
 
     def _update_link_specs_at_port(self, src_id, port_name: str,
-                                   capacity: float = None,
-                                   bandwidth_up: float = None,
                                    tx_packets: int = None,
                                    rx_packets: int = None,
-                                   timestamp: float = 0):
+                                   tx_bytes: int = None,
+                                   rx_bytes: int = None,
+                                   timestamp: float = 0,
+                                   _recv_bps: float = None):
         '''
             Update specs (capacity, bandwidth, delay, jitter, loss rate) of
             link connected to port identified by port_ref (which can be name
@@ -181,28 +189,46 @@ class TopologyState(RyuApp):
         '''
 
         key = (src_id, port_name)
-        if tx_packets != None and rx_packets != None:
-            self._save_stats(self._port_stats, key, (tx_packets, rx_packets),
-                             MONITOR_SAMPLES)
+        self._save_stats(self._port_stats, key,
+                         (tx_packets, rx_packets, tx_bytes, rx_bytes),
+                         MONITOR_SAMPLES)
         link = self._topology.get_link_at_port(src_id, port_name)
         if link:
+            src = link.src_port
             dst = link.dst_port
-            if capacity != None:
-                # link capacity is min of src port capacity and dst port
-                # capacity
-                link.set_capacity(min(capacity, dst.get_capacity()))
-            if bandwidth_up != None:
-                # link bandwidth is min of src port up bandwidth and dst port
-                # down bandwidth
-                link.set_bandwidth(
-                    min(bandwidth_up, dst.get_bandwidth_down()))
+            dst_key = (self._topology.get_dst_at_port(src_id, port_name).id,
+                       dst.name)
+
+            if _recv_bps != None:
+                self._iperf3_update[dst_key] = time()
+                dst_cap = _recv_bps / 10**6
+                dst.set_capacity(dst_cap)
+                if dst_key in self._port_stats:
+                    tmp = self._port_stats[dst_key]
+                    up_pre = 0
+                    down_pre = 0
+                    if len(tmp) > 1:
+                        up_pre = tmp[-2][2]
+                        down_pre = tmp[-2][3]
+                    up_speed = ((tmp[-1][2] - up_pre) / MONITOR_PERIOD) * 8
+                    down_speed = ((tmp[-1][3] - down_pre) / MONITOR_PERIOD) * 8
+                    dst.set_bandwidth_up(
+                        max(0, (dst_cap - up_speed * 8/10**6)))
+                    dst.set_bandwidth_down(
+                        max(0, (dst_cap - down_speed * 8/10**6)))
+
+            # link capacity is min of src port capacity and dst port
+            # capacity
+            link.set_capacity(min(src.get_capacity(), dst.get_capacity()))
+            # link bandwidth is min of src port up bandwidth and dst port
+            # down bandwidth
+            link.set_bandwidth(min(src.get_bandwidth_up(),
+                                   dst.get_bandwidth_down()))
+
             if tx_packets != None:
                 try:
                     re_tx_packets = (tx_packets
                                      - self._port_stats[key][0][0])
-                    dst_key = (
-                        self._topology.get_dst_at_port(src_id, port_name).id,
-                        dst.name)
                     re_rx_packets = (dst.get_rx_packets()
                                      - self._port_stats[dst_key][0][1])
                     link.set_loss_rate(max(
@@ -267,8 +293,7 @@ class TopologyState(RyuApp):
                                 tx_packets = None
                                 rx_packets = None
                             self._update_link_specs_at_port(
-                                dpid, name, capacity, bw_up, tx_packets,
-                                rx_packets)
+                                dpid, name, tx_packets, rx_packets)
 
     def _update_node_state(self):
         # TODO update node state
@@ -304,3 +329,6 @@ class TopologyState(RyuApp):
             for key, timestamp in list(self._block_app_update.items()):
                 if now - timestamp > period:
                     self._block_app_update.pop(key, None)
+            for key, timestamp in list(self._iperf3_update.items()):
+                if now - timestamp > period:
+                    self._iperf3_update.pop(key, None)
