@@ -210,12 +210,16 @@ class TopologyState(RyuApp):
                     if len(tmp) > 1:
                         up_pre = tmp[-2][2]
                         down_pre = tmp[-2][3]
-                    up_speed = ((tmp[-1][2] - up_pre) / MONITOR_PERIOD) * 8
-                    down_speed = ((tmp[-1][3] - down_pre) / MONITOR_PERIOD) * 8
-                    dst.set_bandwidth_up(
-                        max(0, (dst_cap - up_speed * 8/10**6)))
-                    dst.set_bandwidth_down(
-                        max(0, (dst_cap - down_speed * 8/10**6)))
+                    try:
+                        up_speed = ((tmp[-1][2] - up_pre) / MONITOR_PERIOD) * 8
+                        down_speed = (
+                            (tmp[-1][3] - down_pre) / MONITOR_PERIOD) * 8
+                        dst.set_bandwidth_up(
+                            max(0, (dst_cap - up_speed * 8/10**6)))
+                        dst.set_bandwidth_down(
+                            max(0, (dst_cap - down_speed * 8/10**6)))
+                    except:
+                        pass
 
             # link capacity is min of src port capacity and dst port
             # capacity
