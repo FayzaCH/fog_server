@@ -111,8 +111,7 @@ class Topology(RyuApp, Topo):
         self._switches = get_app(SWITCHES)
 
         spawn(self._check_clients)
-        # if host links are not detected
-        # spawn(self._add_host_links)
+        spawn(self._add_host_links)
 
     def add_interface(self, node_id, name: str, num: int = None,
                       mac: str = None, ipv4: str = None):
