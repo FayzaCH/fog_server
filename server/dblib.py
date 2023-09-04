@@ -26,6 +26,7 @@ from threading import Thread, Event
 from sqlite3 import connect
 from csv import writer
 from json import load
+from datetime import datetime
 
 from model import Model, CoS, Request, Attempt, Response, Node, Path
 from consts import ROOT_PATH
@@ -339,19 +340,34 @@ def _adapt(obj: Model):
         path = None
         if obj.path:
             path = str(obj.path)
+        hreq_at = datetime.fromtimestamp(obj.hreq_at)
+        dres_at = None
+        if obj.dres_at:
+            dres_at = datetime.fromtimestamp(obj.dres_at)
         return (obj.id, src, obj.cos.id, obj.data, obj.result, obj.host,
-                path, obj.state, obj.hreq_at, obj.dres_at)
+                path, obj.state, hreq_at, dres_at)
 
     if obj.__class__.__name__ is Attempt.__name__:
         path = None
         if obj.path:
             path = str(obj.path)
+        hreq_at = datetime.fromtimestamp(obj.hreq_at)
+        hres_at = None
+        if obj.hres_at:
+            hres_at = datetime.fromtimestamp(obj.hres_at)
+        rres_at = None
+        if obj.rres_at:
+            rres_at = datetime.fromtimestamp(obj.rres_at)
+        dres_at = None
+        if obj.dres_at:
+            dres_at = datetime.fromtimestamp(obj.dres_at)
         return (obj.req_id, obj.src, obj.attempt_no, obj.host, path,
-                obj.state, obj.hreq_at, obj.hres_at, obj.rres_at, obj.dres_at)
+                obj.state, hreq_at, hres_at, rres_at, dres_at)
 
     if obj.__class__.__name__ is Response.__name__:
+        timestamp = datetime.fromtimestamp(obj.timestamp)
         return (obj.req_id, obj.src, obj.attempt_no, obj.host, obj.algorithm,
-                obj.algo_time, obj.cpu, obj.ram, obj.disk, obj.timestamp)
+                obj.algo_time, obj.cpu, obj.ram, obj.disk, timestamp)
 
     if obj.__class__.__name__ is Path.__name__:
         path = None
@@ -369,9 +385,10 @@ def _adapt(obj: Model):
         loss_rates = None
         if obj.loss_rates:
             loss_rates = str(obj.loss_rates)
+        timestamp = datetime.fromtimestamp(obj.timestamp)
         return (obj.req_id, obj.src, obj.attempt_no, obj.host, path,
                 obj.algorithm, obj.algo_time, bandwidths, delays, jitters,
-                loss_rates, obj.weight_type, obj.weight, obj.timestamp)
+                loss_rates, obj.weight_type, obj.weight, timestamp)
 
 
 # decode table rows as objects
@@ -402,34 +419,50 @@ def _convert(itr: list, cls):
                 obj.set_min_disk(item[11])
 
         if cls.__name__ is Request.__name__:
+            hreq_at = datetime.timestamp(item[8])
+            dres_at = None
+            if item[9]:
+                dres_at = datetime.timestamp(item[9])
             obj = Request(
                 item[0], item[1], select(CoS, id=('=', item[2]))[0], item[3],
-                item[4], item[5], eval(item[6]), item[7], item[8], item[9], {
+                item[4], item[5], eval(item[6]), item[7], hreq_at, dres_at, {
                     att.attempt_no: att
                     for att in select(Attempt, req_id=('=', item[0]),
                                       src=('=', item[1]))})
 
         if cls.__name__ is Attempt.__name__:
+            hreq_at = datetime.timestamp(item[6])
+            hres_at = None
+            if item[7]:
+                hres_at = datetime.timestamp(item[7])
+            rres_at = None
+            if item[8]:
+                rres_at = datetime.timestamp(item[8])
+            dres_at = None
+            if item[9]:
+                dres_at = datetime.timestamp(item[9])
             obj = Attempt(
                 item[0], item[1], item[2], item[3], eval(item[4]), item[5],
-                item[6], item[7], item[8], item[9], {
+                hreq_at, hres_at, rres_at, dres_at, {
                     resp.host: resp
                     for resp in select(Response, req_id=('=', item[0]),
                                        src=('=', item[1]),
                                        attempt_no=('=', item[2]))})
 
         if cls.__name__ is Response.__name__:
+            timestamp = datetime.timestamp(item[9])
             obj = Response(
                 item[0], item[1], item[2], item[3], item[4], item[5], item[6],
-                item[7], item[8], item[9], [
+                item[7], item[8], timestamp, [
                     select(Path, req_id=('=', item[0]), src=('=', item[1]),
                            attempt_no=('=', item[2]), host=('=', item[3]))])
 
         if cls.__name__ is Path.__name__:
+            timestamp = datetime.timestamp(item[13])
             obj = Path(item[0], item[1], item[2], item[3], eval(item[4]),
                        item[5], item[6], eval(item[7]), eval(item[8]),
                        eval(item[9]), eval(item[10]), item[11], item[12],
-                       item[13])
+                       timestamp)
 
         ret.append(obj)
     return ret

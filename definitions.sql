@@ -31,8 +31,8 @@ create table if not exists requests (
     host text,
     path text,
     state integer,
-    hreq_at real,
-    dres_at real,
+    hreq_at text,
+    dres_at text,
 
     primary key (id, src),
 
@@ -52,10 +52,10 @@ create table if not exists attempts (
     host text,
     path text,
     state integer,
-    hreq_at real,
-    hres_at real,
-    rres_at real,
-    dres_at real,
+    hreq_at text,
+    hres_at text,
+    rres_at text,
+    dres_at text,
 
     primary key (req_id, src, attempt_no),
 
@@ -78,7 +78,7 @@ create table if not exists responses (
     cpu real,
     ram real,
     disk real,
-    timestamp real,
+    timestamp text,
 
     primary key (req_id, src, attempt_no, host),
 
@@ -109,7 +109,7 @@ create table if not exists paths (
     loss_rates text,
     weight_type text,
     weight real,
-    timestamp real,
+    timestamp text,
 
     primary key (req_id, src, attempt_no, host, path),
 
