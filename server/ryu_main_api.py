@@ -42,7 +42,7 @@ DELETE /node/{id}
 PUT /node_specs/{id}
 JSON request body: {
     'timestamp': <float>,
-    'cpu_count': <int>,
+    'cpu_count': <float>,
     'cpu_free': <float>,
     'memory_total': <float>,
     'memory_free': <float>,
@@ -311,7 +311,7 @@ class RyuMainAPI(ControllerBase):
             timestamp = self._get_post(json, 'timestamp', float, ret=time())
             kwargs = queue[-1][1]
             kwargs['timestamp'] = timestamp
-            kwargs['cpu_count'] = self._get_post(json, 'cpu_count', int)
+            kwargs['cpu_count'] = self._get_post(json, 'cpu_count', float)
             kwargs['cpu_free'] = self._get_post(json, 'cpu_free', float)
             kwargs['memory_total'] = self._get_post(
                 json, 'memory_total', float)

@@ -71,7 +71,7 @@ class TopologyState(RyuApp):
         if len(_dict[key]) > length:
             _dict[key].pop(0)
 
-    def update_node_specs(self, id, cpu_count: int = None,
+    def update_node_specs(self, id, cpu_count: float = None,
                           cpu_free: float = None, memory_total: float = None,
                           memory_free: float = None, disk_total: float = None,
                           disk_free: float = None, timestamp: float = 0):
