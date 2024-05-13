@@ -98,6 +98,7 @@ JSON request body: {
 from os import getenv, makedirs
 from time import time
 from json import load
+import json
 
 from ryu.app.wsgi import route, Response as HTTPResponse, ControllerBase
 
@@ -505,6 +506,44 @@ class RyuMainAPI(ControllerBase):
         clf()
         draw(self._topology.get_graph(), with_labels=True)
         savefig(ROOT_PATH + '/data/' + str(time()) + '.png')
+
+    @route('test', '/topolinks')
+    def topolinks(self, _):
+        topo = self._topology
+        topograph = topo.get_graph()
+        topo._src_port_to_dst
+        topo._num_to_name
+        topo._interfaces
+        topo._ips
+        topolinks = topo.get_links()
+        Links = "["
+        for src_id, dsts in topolinks.items():
+            for dst_id, link in dsts.items():
+                src = topo.get_node(src_id).as_dict()["label"]
+                dst = topo.get_node(dst_id).as_dict()["label"]
+                Link = topo.get_link(src_id,dst_id)
+                Links = Links + '{"' + src +  '":{"' + dst +'":' +json.dumps(Link.as_dict(),indent=2) + "}},"
+        Links = Links + '{}]'
+        return Links
+
+    @route('test', '/nodesinfo')
+    def nodesinfo(self, _):
+        topo = self._topology
+        nodes = topo.get_nodes()
+        resp='NODE LIST <BR>'
+        for id in list(nodes):
+            node=topo.get_node(id)
+            resp = resp + node.label + '    ' +str(node.type.value) +'   ' + str(node.state) +'<br>'
+            resp = resp + 'cpu : '+ str(node.get_cpu_count())+'   memory : '+ str(node.get_memory_total()) + '   disk :  ' + str(node.get_disk_total()) +'<BR>'
+            #resp = resp + node.specs
+            #interfaces
+            resp = '<br>' + resp + 'Liste of interfaces : <br>'
+            interfaces = node.interfaces
+            for _, iface in node.interfaces.items():
+                resp = resp +  iface.name +' , '
+        return(HTTPResponse(content_type='text/html',
+                                        text=resp))
+
 
     def _get_post(self, json, key, type=None, required=False, ret=None):
         if type == float:
