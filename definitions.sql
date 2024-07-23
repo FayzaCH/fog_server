@@ -13,7 +13,7 @@ create table cos (
     max_delay real,
     max_jitter real,
     max_loss_rate real,
-    min_cpu integer,
+    min_cpu real,
     min_ram real,
     min_disk real
 );

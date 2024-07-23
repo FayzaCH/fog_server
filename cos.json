@@ -2,7 +2,7 @@
     {
         "id": 1,
         "name": "best-effort",
-        "min_cpu": 0,
+        "min_cpu": 0.025,
         "min_ram": 10,
         "min_disk": 0,
         "min_bandwidth": 0,
@@ -16,7 +16,7 @@
     {
         "id": 2,
         "name": "cpu-bound",
-        "min_cpu": 1,
+        "min_cpu": 0.05,
         "min_ram": 100,
         "min_disk": 1,
         "min_bandwidth": 1,
@@ -27,7 +27,7 @@
     {
         "id": 3,
         "name": "streaming",
-        "min_cpu": 1,
+        "min_cpu": 0.025,
         "min_ram": 100,
         "min_disk": 1,
         "min_bandwidth": 1,
@@ -38,7 +38,7 @@
     {
         "id": 4,
         "name": "conversational",
-        "min_cpu": 1,
+        "min_cpu": 0.025,
         "min_ram": 100,
         "min_disk": 1,
         "min_bandwidth": 0,
@@ -49,7 +49,7 @@
     {
         "id": 5,
         "name": "interactive",
-        "min_cpu": 1,
+        "min_cpu": 0.025,
         "min_ram": 100,
         "min_disk": 1,
         "min_bandwidth": 0,
@@ -60,7 +60,7 @@
     {
         "id": 6,
         "name": "real-time",
-        "min_cpu": 1,
+        "min_cpu": 0.025,
         "min_ram": 100,
         "min_disk": 1,
         "min_bandwidth": 5,
@@ -71,7 +71,7 @@
     {
         "id": 7,
         "name": "mission-critical",
-        "min_cpu": 1,
+        "min_cpu": 0.025,
         "min_ram": 100,
         "min_disk": 1,
         "min_bandwidth": 0,

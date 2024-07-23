@@ -114,7 +114,7 @@ SIMULATOR:
   
   # interval for randomly simulated execution time (in seconds, default is [0, 1])
   EXEC_MIN: 0.0001
-  EXEC_MAX: 0.0001
+  EXEC_MAX: 2 #change to 10
 
 MONITOR:
   # monitoring interval (in seconds, default is 1)
@@ -134,9 +134,14 @@ OPENSTACK:
   URL: https://dash.cloud.cerist.dz
   AUTH_PORT: 5000
   GNOCCHI_PORT: 8041
-  USERNAME: oyoucef
-  PASSWORD: pass
+  USERNAME: cadmin
+  PASSWORD: hoDVoozaihsm3
+  USER_ID: 3b02eda853654c3389d5a15e862edd2c
+  PROJECT_ID: 4244f737e7504edb9bae17d6298ce1c9
+
+  #USERNAME: oyoucef
+  #PASSWORD: pass
   USER_DOMAIN_ID: default
-  USER_ID: 40bea06eefdc4dbb97cdbe03fb3d3b75
-  PROJECT_ID: 701ed6e74e5e41e48519e444cebe8598
+  #USER_ID: 40bea06eefdc4dbb97cdbe03fb3d3b75
+  #PROJECT_ID: 701ed6e74e5e41e48519e444cebe8598
   ARCHIVE_POLICY: ceilometer-low
