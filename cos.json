@@ -16,7 +16,7 @@
     {
         "id": 2,
         "name": "cpu-bound",
-        "min_cpu": 0.05,
+        "min_cpu": 0.050,
         "min_ram": 100,
         "min_disk": 1,
         "min_bandwidth": 1,
