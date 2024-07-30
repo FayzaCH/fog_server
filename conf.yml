@@ -11,7 +11,7 @@ CONTROLLER:
   DECOY_IP: 10.0.0.254
 
   # absolute path to ryu installation root directory (no default, required)
-  PATH: /home/ouarab/ryu
+  PATH: /home/ubuntu/ryu
 
   # enable/disable printing detailed messages on console (default is False)
   VERBOSE: True
@@ -42,8 +42,12 @@ NETWORK:
   IP_POOL: >
     10.0.0.1:10.0.0.5,
     10.10.0.10:10.10.0.12,
+    10.10.0.100,
     10.20.0.10:10.20.0.12,
+    10.20.0.100,
     10.30.0.10:10.30.0.12,
+    10.30.0.100,
+    10.50.0.3,
     10.10.0.254,
     10.20.0.254,
     10.30.0.254,
