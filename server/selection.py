@@ -154,7 +154,12 @@ class _LeastCostPathSelection(_PathSelection):
 
             CDp = req.get_max_delay() / Dp
             CJp = req.get_max_jitter() / Jp
-            CLRp = req.get_max_loss_rate() / LRp
+            ## exception : all links' loss_rate values are zero, cost of the path loss rate is set to 1 
+            if CLRp != 0 :
+                CLRp = req.get_max_loss_rate() / LRp
+            else : 
+                CLRp = 1    
+            ##    
             BWc = req.get_min_bandwidth()
             CBWp = BWc / (Ct - (Bw + BWc))
             return CBWp / (CDp * CJp * CLRp)
