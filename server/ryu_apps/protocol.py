@@ -526,6 +526,7 @@ class Protocol(RyuApp):
         timestamp = time()
         for host in hosts:
             host_ip = host.main_interface.ipv4
+            ## TODO : lever l'exception quand l'interface n'existe pas (le lien vxlan a été supprimé par exmple)
             Response(req_id, src_ip, attempt_no, host_ip, NODE_ALGO, algo_time,
                      host.get_cpu_free(), host.get_memory_free(),
                      host.get_disk_free(), timestamp).insert()

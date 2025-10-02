@@ -42,12 +42,11 @@ NETWORK:
   IP_POOL: >
     10.0.0.1:10.0.0.5,
     10.10.0.10:10.10.0.12,
-    10.10.0.100,
     10.20.0.10:10.20.0.12,
-    10.20.0.100,
     10.30.0.10:10.30.0.12,
+    10.20.0.101,
     10.30.0.100,
-    10.50.0.3,
+    10.50.0.10,
     10.10.0.254,
     10.20.0.254,
     10.30.0.254,
@@ -81,13 +80,14 @@ ORCHESTRATOR:
   NODE_ALGORITHM: SIMPLE
 
   # path selection algorithm
-    # options are DIJKSTRA | LEASTCOST (default is DIJKSTRA)
-  PATH_ALGORITHM: LEASTCOST
+    # options are DIJKSTRA | LEASTCOST | AHP (default is DIJKSTRA)
+  PATH_ALGORITHM: AHP
 
   # path weights considered
     # options for DIJKSTRA are HOP | DELAY (default is HOP)
-    # options for LEASTCOST are COST (default is COST)
-  PATH_WEIGHT: COST
+    # options for LEASTCOST are COST | AHP (default is COST)
+    # options for AHP are AHP (default is AHP)
+  PATH_WEIGHT: AHP
 
 PROTOCOL:
   # requests destination (default is NONE)
@@ -122,7 +122,7 @@ SIMULATOR:
 
 MONITOR:
   # monitoring interval (in seconds, default is 1)
-  PERIOD: 2
+  PERIOD: 1
   
   # number of samples of measures to retain (default and minimum is 2)
   SAMPLES: 5
