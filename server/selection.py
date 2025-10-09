@@ -252,7 +252,7 @@ class _AHPCostPathSelection(_PathSelection):
                 coef_Jitter = 0.048
                 coef_LossRate =0.292
             elif req.cos.id == 6:
-                coef_bw == 0.088
+                coef_bw = 0.088
                 coef_Delay = 0.482
                 coef_Jitter = 0.158
                 coef_LossRate =0.272
