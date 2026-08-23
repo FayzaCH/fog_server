@@ -4,7 +4,9 @@ CONTROLLER:
   
   # controller's decoy MAC (no default, required)
     # can be anything but must not already exist
-  DECOY_MAC: dd:dd:dd:dd:dd:dd
+  #DECOY_MAC: dd:dd:dd:dd:dd:dd
+  DECOY_MAC: 00:00:00:00:00:99
+
   
   # controller's decoy IP (no default, required)
     # must be in subnet of hosts and must not already exist

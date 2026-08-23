@@ -202,11 +202,95 @@ class Topology(RyuApp, Topo):
 
     @set_ev_cls(EventHostDelete)
     def _host_delete_handler(self, ev):
-        pass
+        """
+        Host disconnected/removed. Remove topology links and all attachment
+        state for a clean reconnection later.
+
+        This deletes:
+        - links host <-> switch (both directions)
+        - interface record in self._interfaces for the MAC
+        - IP -> attachment mapping in self._ips for the host's IPs
+        - host node (if present)
+        """
+
+        host = ev.host
+        mac = getattr(host, 'mac', None)
+        port = getattr(host, 'port', None)
+        if not mac:
+            return
+
+        # try to determine dpid to remove links
+        dpid = None
+        try:
+            # prefer the event port if provided
+            if port:
+                dpid = port.dpid
+            else:
+                dpid = self.get_by_mac(mac, 'dpid')
+        except Exception:
+            dpid = None
+
+        # If node id exists for the host, use it (may be mac or a generated id)
+        try:
+            node_id = self.get_by_mac(mac, 'node_id')
+        except Exception:
+            node_id = None
+
+        # Remove links between host node and switch (both directions)
+        if node_id is not None and dpid is not None:
+            try:
+                if self.get_link(node_id, dpid):
+                    self.delete_link(node_id, dpid)
+            except Exception:
+                pass
+            try:
+                if self.get_link(dpid, node_id):
+                    self.delete_link(dpid, node_id)
+            except Exception:
+                pass
+
+        # Remove interface record entirely (clean slate for reconnection)
+        if mac in self._interfaces:
+            self._interfaces.pop(mac, None)
+            console.info('Removed interface record for %s', mac)
+            file.info('Removed interface record for %s', mac)
+        # Remove IP -> attachment mappings for this host's IPs
+        for ipv4 in getattr(host, 'ipv4', []) or []:
+            if ipv4 in self._ips:
+                self._ips.pop(ipv4, None)
+                console.info('Removed IP mapping for %s', ipv4)
+                file.info('Removed IP mapping for %s', ipv4)
+
+        # Remove host node if it exists (avoid stale node)
+        try:
+            if node_id and self.get_node(node_id):
+                self.delete_node(node_id)
+                console.info('Deleted host node %s', str(node_id))
+                file.info('Deleted host node %s', str(node_id))
+        except Exception:
+            pass
+
 
     @set_ev_cls(EventHostMove)
     def _host_move_handler(self, ev):
-        pass
+        """
+        On host move: remove previous attachments (old_port if provided) and
+        then handle the new attachment via host_add_handler so state is rebuilt.
+        """
+        # If EventHostMove provides the old port, construct a small event-like
+        # object so the delete handler can remove old state.
+        old_port = getattr(ev, 'old_port', None)
+        if old_port:
+            # create a minimal host object copy with the old port so delete
+            # code can use it
+            old_host = ev.host
+            old_host.port = old_port
+            old_ev = type('OldEvent', (), {'host': old_host})
+            self._host_delete_handler(old_ev)
+
+        # Now treat the event as a fresh host add (host_add_handler will set
+        # interface/IPs and later _add_host_links will create links)
+        self._host_add_handler(ev)
 
     def _add_host_links(self):
         while True:
