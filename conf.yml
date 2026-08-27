@@ -124,10 +124,10 @@ SIMULATOR:
 
 MONITOR:
   # monitoring interval (in seconds, default is 1)
-  PERIOD: 1
+  PERIOD: 2
   
   # number of samples of measures to retain (default and minimum is 2)
-  SAMPLES: 5
+  SAMPLES: 4
   
   # enable/disable printing monitoring data on console (default is False)
   VERBOSE: True

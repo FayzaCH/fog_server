@@ -229,18 +229,18 @@ class _AHPCostPathSelection(_PathSelection):
                 coef_bw = 0.120
                 coef_Delay = 0.134
                 coef_Jitter = 0
-                coef_LossRate =0.746
+                coef_LossRate = 0.746
             elif req.cos.id == 2:
                 #console.info('in 2 CoS')
                 coef_bw = 0.528
                 coef_Delay = 0.116
                 coef_Jitter = 0.047
-                coef_LossRate =0.309
+                coef_LossRate = 0.309
             elif req.cos.id == 3:
                 coef_bw = 0.545
                 coef_Delay = 0.117
                 coef_Jitter = 0.063
-                coef_LossRate =0.275
+                coef_LossRate = 0.275
             elif req.cos.id == 4:
                 coef_bw = 0.154
                 coef_Delay = 0.406
@@ -250,7 +250,7 @@ class _AHPCostPathSelection(_PathSelection):
                 coef_bw = 0.165
                 coef_Delay = 0.496
                 coef_Jitter = 0.048
-                coef_LossRate =0.292
+                coef_LossRate = 0.292
             elif req.cos.id == 6:
                 coef_bw = 0.088
                 coef_Delay = 0.482
@@ -260,7 +260,7 @@ class _AHPCostPathSelection(_PathSelection):
                 coef_bw = 0.090
                 coef_Delay = 0.406
                 coef_Jitter = 0.143
-                coef_LossRate =0.361
+                coef_LossRate = 0.361
             else :
                 console.error('%s does not exist ', req.cos.id)
                 file.error('%s does not exist', req.cos.id)
