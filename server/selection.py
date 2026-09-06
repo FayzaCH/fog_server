@@ -132,39 +132,54 @@ class _DijkstraPathSelection(_PathSelection):
 class _LeastCostPathSelection(_PathSelection):
     def select(self, topo: Topology, targets: list, req: Request,
                weight: str = '', strategy: str = ''):
-        def calc_cost(path: list):
+        def calc_cost(path: list) -> float:
             len_path = len(path)
-            Ct = float('inf')
-            BWp = float('inf')
-            Bw = 0
-            Dp = 0
-            Jp = 0
-            LRp = 1
+            if len_path < 2:
+                return float('inf')
+            
+            Ct = float('inf')       # Path capacity min
+            BWp = float('inf')      # Path free bandwidth min 
+            Dp = 0.0                # Path total delay
+            Jp = 0.0                # Path total jitter
+            success_rate = 1.0      # Path transmission success rate product
+            
             for i in range(1, len_path):
                 Pi = topo.get_link(path[i-1], path[i])
-                ## TODO : check this part
+                if Pi is None:
+                    return float('inf')
+
                 cap = Pi.get_capacity()                
-                Ct = min(Ct, cap)
                 free_bw = Pi.get_bandwidth()
+
+                Ct = min(Ct, cap)
                 BWp = min(BWp, free_bw)
-                Bw += (cap - free_bw)
-                ###
                 Dp += Pi.get_delay()
                 Jp += Pi.get_jitter()
-                LRp *= (1 - Pi.get_loss_rate())
-            LRp = 1 - LRp
-            ## exception : all links' loss_rate values are zero, cost of the path loss rate is set to request's max_loss_rate 
-            if LRp == 0 :
-                LRp = req.get_max_loss_rate()
+                success_rate *= (1.0 - Pi.get_loss_rate())
+            # Path loss rate : 1 - \prod (1 - lr_l)
 
-            CDp = req.get_max_delay() / Dp
-            CJp = req.get_max_jitter() / Jp
-            CLRp = req.get_max_loss_rate() / LRp
+            LRp = 1.0 - success_rate
+
+            EPSILON = 1e-9
+
+            #1. Bandwidth cost
             BWc = req.get_min_bandwidth()
-            ## TODO:  and check this part
-            CBWp = BWc / (Ct - (Bw + BWc))
-            ##
-            return CBWp / (CDp * CJp * CLRp)
+            denom_bw = Ct - (BWp + BWc)
+            if denom_bw <= 0:
+                return float('inf')
+            CBWp = BWc / denom_bw
+
+            #2. Delay, Jitter, and Loss rate costs
+            CDp = req.get_max_delay() / Dp if Dp > 0 else float('inf')
+            CJp = req.get_max_jitter() / Jp if Jp > 0 else float('inf')
+            CLRp = req.get_max_loss_rate() / (LRp + EPSILON)
+
+            # 3. Final constraint-based metric : phi_p
+            denom_phi = CDp * CJp * CLRp
+            if denom_phi <= 0:
+                return float('inf')
+            
+            return CBWp / denom_phi
 
         graph = topo.get_graph()
         paths = all_simple_paths(graph, req.src.id,
