@@ -148,10 +148,8 @@ class _LeastCostPathSelection(_PathSelection):
                 if Pi is None:
                     return float('inf')
 
-                cap = Pi.get_capacity()                
                 free_bw = Pi.get_bandwidth()
 
-                Ct = min(Ct, cap)
                 BWp = min(BWp, free_bw)
                 Dp += Pi.get_delay()
                 Jp += Pi.get_jitter()
@@ -164,10 +162,11 @@ class _LeastCostPathSelection(_PathSelection):
 
             #1. Bandwidth cost
             BWc = req.get_min_bandwidth()
-            denom_bw = Ct - (BWp + BWc)
-            if denom_bw <= 0:
+            remaining_bw = BWp - BWc
+            if remaining_bw <= 0:
                 return float('inf')
-            CBWp = BWc / denom_bw
+            
+            CBWp = BWc / remaining_bw
 
             #2. Delay, Jitter, and Loss rate costs
             CDp = req.get_max_delay() / Dp if Dp > 0 else float('inf')
