@@ -137,7 +137,6 @@ class _LeastCostPathSelection(_PathSelection):
             if len_path < 2:
                 return float('inf')
             
-            Ct = float('inf')       # Path capacity min
             BWp = float('inf')      # Path free bandwidth min 
             Dp = 0.0                # Path total delay
             Jp = 0.0                # Path total jitter
