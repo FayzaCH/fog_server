@@ -7,7 +7,7 @@ from ryu.lib.packet.llc import llc
 from ryu.lib.packet.ether_types import (ETH_TYPE_LLDP, ETH_TYPE_ARP,
                                         ETH_TYPE_IPV6)
 from ryu.topology.event import (EventLinkAdd, EventLinkDelete,
-                                EventSwitchLeave, EventSwitchEnter)
+                                EventSwitchLeave, EventSwitchEnter, EventHostDelete)
 
 from networkx import DiGraph, shortest_path
 from networkx.exception import NetworkXError, NetworkXNoPath
@@ -103,7 +103,7 @@ class SimpleSwitchSP13(SimpleSwitch13):
         # This solution also helps with network loops by installing flows
         # on the datapaths to avoid flooding.
 
-        if src not in self._net:
+        if not self._net.has_edge(src, dpid):
             self._net.add_edge(src, dpid, in_port=in_port)
             self._net.add_edge(dpid, src, out_port=in_port)
 
@@ -243,3 +243,16 @@ class SimpleSwitchSP13(SimpleSwitch13):
                     dsts.pop(dst, None)
                     if not dsts:
                         self._outs.pop(src, None)
+
+    @set_ev_cls(EventHostDelete)
+    def _host_delete_handler(self, ev):
+        mac = ev.host.mac
+        if mac in self._net:
+            try:
+                self._net.remove_node(mac)
+            except NetworkXError:
+                file.exception('No node')
+        self._outs.pop(mac, None)
+        for src, dsts in list(self._outs.items()):
+            dsts.pop(mac, None)
+        self._paths = {p for p in self._paths if mac not in p}            
