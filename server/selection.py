@@ -17,9 +17,13 @@
     Calculates link weights and gets the shortest path from the source node to
     each potential destination node.
 
-    LEASTCOST: Best path selection based on path cost that is calculated with
+    LEASTCOST (CBP): Best path selection based on path cost that is calculated with
     an equation that includes bandwidth cost, delay cost, jitter cost, and
     loss rate cost.
+
+    AHP : Best path selection based on path score that is calculated with an 
+    equation that includes coefficients for bandwidth, delay, jitter, and loss
+    rate evaluated for each CoS using the Analytic Hierarchy Process (AHP) Method. 
 '''
 
 
@@ -221,10 +225,17 @@ class _LeastCostPathSelection(_PathSelection):
 class _AHPCostPathSelection(_PathSelection):
     def select(self, topo: Topology, targets: list, req: Request,
                weight: str = '', strategy: str = ''):
-        def calc_cost(path: list) -> float:
+        def calc_metrics(path: list):
+            '''
+                Compute the raw (non-normalised) per-path metrics: minimum
+                free bandwidth, total delay, total jotter, and total ross 
+                rate. Returns None if the path is structurally invalid or
+                violates  hard requirement (min bandwidth, max delay, max
+                jitter, max loss rate) of req.
+            '''
             len_path = len(path)
             if len_path < 2:
-                return float('inf')
+                return None
             
             BWp = float('inf')
             Dp = 0.0
@@ -234,7 +245,7 @@ class _AHPCostPathSelection(_PathSelection):
             for i in range(1, len_path):
                 Pi = topo.get_link(path[i-1], path[i])
                 if Pi is None:
-                    return float('inf')
+                    return None
                 
                 free_bw = Pi.get_bandwidth()
 
@@ -245,98 +256,129 @@ class _AHPCostPathSelection(_PathSelection):
 
             LRp = 1.0 - success_rate
 
+
+
             #exclude paths that don't match required values of bw, delay, jitter and LR
             if (Dp > req.get_max_delay() or Jp > req.get_max_jitter() or 
                 LRp > req.get_max_loss_rate() or BWp < req.get_min_bandwidth()):
-                return 0
-            
+                return None
+
+            return{'path': path, 'BW': BWp, 'Delay': Dp, 'Jitter': Jp, 'LossRate': LRp}
+        
+        def get_coefs():
+            '''
+                Return the (coef_bw, coef_Delay, coef_Jitter, coef_LossRate)
+                AHP weights tuple for req's class of service, or None if the 
+                class of service is unknown.
+            '''        
             if req.cos.id == 1:
-                coef_bw = 0.120
-                coef_Delay = 0.134
-                coef_Jitter = 0
-                coef_LossRate = 0.746
+                return 0.120, 0.134, 0, 0.746
 
             elif req.cos.id == 2:
-                coef_bw = 0.528
-                coef_Delay = 0.116
-                coef_Jitter = 0.047
-                coef_LossRate = 0.309
+                return 0.528, 0.116, 0.047, 0.309
 
             elif req.cos.id == 3:
-                coef_bw = 0.545
-                coef_Delay = 0.117
-                coef_Jitter = 0.063
-                coef_LossRate = 0.275
+                return 0.545, 0.117, 0.063, 0.275
 
             elif req.cos.id == 4:
-                coef_bw = 0.154
-                coef_Delay = 0.406
-                coef_Jitter = 0.124
-                coef_LossRate =0.316
+                return 0.154, 0.406, 0.124, 0.316
 
             elif req.cos.id == 5:
-                coef_bw = 0.165
-                coef_Delay = 0.496
-                coef_Jitter = 0.048
-                coef_LossRate = 0.292
+                return 0.165, 0.496, 0.048, 0.292
 
             elif req.cos.id == 6:
-                coef_bw = 0.088
-                coef_Delay = 0.482
-                coef_Jitter = 0.158
-                coef_LossRate =0.272
+                return 0.088, 0.482, 0.158, 0.272
 
             elif req.cos.id == 7:
-                coef_bw = 0.090
-                coef_Delay = 0.406
-                coef_Jitter = 0.143
-                coef_LossRate = 0.361
+                return 0.090, 0.406, 0.143, 0.361
 
             else :
                 console.error('%s does not exist ', req.cos.id)
                 file.error('%s does not exist', req.cos.id)
-                return []
+                return None
             
-            return ((coef_Delay * Dp) + (coef_Jitter * Jp) + (coef_LossRate * LRp ) + (coef_bw * BWp))
+        def normalize(value, vmin, vmax, higher_is_better):
+            '''
+            Min-Max Normalisation of a metric against observed
+             [vmin, vmax] range across all candidate paths. For
+             lower-is-better metrics (Delay, Jitter, Loss Rate) the
+             formula is inverted: mu = (kmax - kp) / (kmax - kmin).
+             When every candidate path has the same value of this
+             metric (vmax == vmin), it carries no discriminative power, 
+             so it's normalised to 1.0. 
+            '''
+            if vmax == vmin:
+                return 1.0
+            if higher_is_better:
+                return (value- vmin) / (vmax - vmin)
+            return (vmax - value) / (vmax - vmin)
 
+        coefs = get_coefs()
+        if coefs is None:
+            return[]
+        coef_bw, coef_Delay, coef_Jitter, coef_LossRate = coefs
         graph = topo.get_graph()
-        paths = all_simple_paths(graph, req.src.id,
-                                 [target.id for target in targets])
+        raw_paths = all_simple_paths(graph, req.src.id,
+                                     [target.id for target in targets])
+        # --- Pass 1: gather raw metrics for every feasible path ---
+        candidates = []
+        for path in raw_paths:
+            try:
+                metrics = calc_metrics(path)
+            except:
+                metrics = None
+            if metrics is not None:
+                candidates.append(metrics)
 
         if not strategy or strategy == ALL:
             ret = []
-
-        if strategy == BEST:
-            best_Cpath = float('inf')
+        elif strategy == BEST:
+            best_Upath = float('-inf')
             best_path = None
+        else:
+            console.error('%s strategy not applicable in %s algorithm',
+                          strategy, AHP_PATH)
+            file.error('%s strategy not applicable in %s algorithm',
+                       strategy, AHP_PATH)
+            return[]
 
-        for path in paths:
-            try:
-                Cpath = calc_cost(path)
-            except:
-                Cpath = float('inf')
+        # --- Pass 2: Min-Max normalise each metric across candidates,
+        # then compute the AHP utility score U_p for each path ---
 
-            if not strategy or strategy == ALL:
-                insort(ret, {'path': path, 'length': Cpath},
-                       key=lambda x: x['length'], reverse = True)
+        if candidates:
+            bw_min = min(c['BW'] for c in candidates)
+            bw_max = max(c['BW'] for c in candidates)
+            d_min = min(c['Delay'] for c in candidates)
+            d_max = max(c['Delay'] for c in candidates)
+            j_min = min(c['Jitter'] for c in candidates)
+            j_max = max(c['Jitter'] for c in candidates)
+            lr_min = min(c['LossRate'] for c in candidates)
+            lr_max = max(c['LossRate'] for c in candidates)
 
-            elif strategy == BEST:
-                if Cpath < best_Cpath:
-                    best_Cpath = Cpath
-                    best_path = path
+            for c in candidates:
+                        mu_bw = normalize(c['BW'], bw_min, bw_max,
+                                            higher_is_better=True)
+                        mu_D = normalize(c['Delay'], d_min, d_max, higher_is_better = False)
+                        mu_J = normalize(c['Jitter'], j_min, j_max, higher_is_better=False)
+                        mu_LR = normalize(c['LossRate'], lr_min, lr_max, higher_is_better=False)
+
+                        Upath = (coef_bw * mu_bw) + (coef_Delay * mu_D) + (coef_Jitter * mu_J) + (coef_LossRate * mu_LR)
+
+                        if not strategy or strategy == ALL:
+                            insort(ret, {'path': c['path'], 'length': Upath}, key=lambda x: x['length'], reverse=True)
+                        elif strategy == BEST:
+                          if Upath > best_Upath:
+                              best_Upath = Upath
+                              best_path = c['path']
+
 
         if not strategy or strategy == ALL:
             return ret
 
-        elif strategy == BEST:
-            return [{'path': best_path, 'length': best_Cpath}]
+        else: # strategy == BEST
+            return [{'path': best_path, 'length': best_Upath}]
 
-        else:
-            console.error('%s strategy not applicable in %s algorithm',
-                          strategy, LEASTCOST_PATH)
-            file.error('%s strategy not applicable in %s algorithm',
-                       strategy, LEASTCOST_PATH)
-            return []
+        
 # ================================
 #     Algorithms Access Points
 # ================================

@@ -27,13 +27,13 @@ NETWORK:
     # STP must be enabled/disabled manually
 
   # scenario 1
-  STP_ENABLED: True
+  #STP_ENABLED: True
 
   # scenario 2
   # STP_ENABLED: True
 
   # scenario 3
-  # STP_ENABLED: False
+  STP_ENABLED: False
   
   # ARP table refresh interval (in seconds, default is 60)
   ARP_REFRESH: 60
@@ -69,13 +69,13 @@ ORCHESTRATOR:
     # only works if STP is disabled (multi-path)
   
   # scenario 1
-  PATHS: False
+  # PATHS: False
 
   # scenario 2
   # PATHS: False
 
   # scenario 3
-  # PATHS: True
+  PATHS: True
 
   # node selection algorithm
     # options are SIMPLE (default is SIMPLE)
@@ -98,13 +98,13 @@ PROTOCOL:
     # NONE means protocol is not used
 
   # scenario 1
-  SEND_TO: BROADCAST
+  #SEND_TO: BROADCAST
 
   # scenario 2
   # SEND_TO: ORCHESTRATOR
 
   # scenario 3
-  # SEND_TO: ORCHESTRATOR
+  SEND_TO: ORCHESTRATOR
   
   # time to wait for answer after sending a packet (in seconds, default is 1)
   TIMEOUT: 1
