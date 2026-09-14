@@ -221,59 +221,77 @@ class _LeastCostPathSelection(_PathSelection):
 class _AHPCostPathSelection(_PathSelection):
     def select(self, topo: Topology, targets: list, req: Request,
                weight: str = '', strategy: str = ''):
-        def calc_cost(path: list):
+        def calc_cost(path: list) -> float:
             len_path = len(path)
+            if len_path < 2:
+                return float('inf')
+            
             BWp = float('inf')
-            Dp = 0
-            Jp = 0
-            LRp = 1
+            Dp = 0.0
+            Jp = 0.0
+            success_rate = 1.0
+
             for i in range(1, len_path):
                 Pi = topo.get_link(path[i-1], path[i])
-                BWp = min(BWp, Pi.get_bandwidth())
+                if Pi is None:
+                    return float('inf')
+                
+                free_bw = Pi.get_bandwidth()
+
+                BWp = min(BWp, free_bw)
                 Dp += Pi.get_delay()
                 Jp += Pi.get_jitter()
-                LRp *= (1 - Pi.get_loss_rate())
-            LRp = 1 - LRp
+                success_rate *= (1.0 - Pi.get_loss_rate())
+
+            LRp = 1.0 - success_rate
+
             #exclude paths that don't match required values of bw, delay, jitter and LR
             if (Dp > req.get_max_delay() or Jp > req.get_max_jitter() or 
                 LRp > req.get_max_loss_rate() or BWp < req.get_min_bandwidth()):
                 return 0
+            
             if req.cos.id == 1:
                 coef_bw = 0.120
                 coef_Delay = 0.134
                 coef_Jitter = 0
                 coef_LossRate = 0.746
+
             elif req.cos.id == 2:
-                #console.info('in 2 CoS')
                 coef_bw = 0.528
                 coef_Delay = 0.116
                 coef_Jitter = 0.047
                 coef_LossRate = 0.309
+
             elif req.cos.id == 3:
                 coef_bw = 0.545
                 coef_Delay = 0.117
                 coef_Jitter = 0.063
                 coef_LossRate = 0.275
+
             elif req.cos.id == 4:
                 coef_bw = 0.154
                 coef_Delay = 0.406
                 coef_Jitter = 0.124
                 coef_LossRate =0.316
+
             elif req.cos.id == 5:
                 coef_bw = 0.165
                 coef_Delay = 0.496
                 coef_Jitter = 0.048
                 coef_LossRate = 0.292
+
             elif req.cos.id == 6:
                 coef_bw = 0.088
                 coef_Delay = 0.482
                 coef_Jitter = 0.158
                 coef_LossRate =0.272
+
             elif req.cos.id == 7:
                 coef_bw = 0.090
                 coef_Delay = 0.406
                 coef_Jitter = 0.143
                 coef_LossRate = 0.361
+
             else :
                 console.error('%s does not exist ', req.cos.id)
                 file.error('%s does not exist', req.cos.id)
