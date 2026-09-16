@@ -1336,13 +1336,15 @@ class Path(Model):
         weight: Path weight value.
 
         timestamp: Path timestamp.
+
+        relaxed: True if this path was selected in AHP relaxed mode, False otherwise. Default is False.
     '''
 
     def __init__(self, req_id, src: str, attempt_no: int, host: str,
                  path: list, algorithm: str, algo_time: float,
                  bandwidths: list, delays: list, jitters: list,
                  loss_rates: list, weight_type: str, weight: float,
-                 timestamp: float = 0):
+                 timestamp: float = 0, relaxed: bool = False):
         self.req_id = req_id
         self.src = src
         self.attempt_no = attempt_no
@@ -1357,3 +1359,4 @@ class Path(Model):
         self.weight_type = weight_type
         self.weight = weight
         self.timestamp = timestamp if timestamp else time()
+        self.relaxed = relaxed

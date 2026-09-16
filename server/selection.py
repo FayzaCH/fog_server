@@ -343,6 +343,7 @@ class _AHPCostPathSelection(_PathSelection):
         elif strategy == BEST:
             best_Upath = float('-inf')
             best_path = None
+            best_relaxed = False
         else:
             console.error('%s strategy not applicable in %s algorithm',
                           strategy, AHP_PATH)
@@ -372,19 +373,26 @@ class _AHPCostPathSelection(_PathSelection):
 
                         Upath = (coef_bw * mu_bw) + (coef_Delay * mu_D) + (coef_Jitter * mu_J) + (coef_LossRate * mu_LR)
 
+                        #a candidate is "relaxed" if it wouldn't have been considered had relax been
+                        # False (i.e. it fails req's bw, delay, jitter, Loss Rate requirements).
+
+                        relaxed = not c['feasible']
+
+
                         if not strategy or strategy == ALL:
-                            insort(ret, {'path': c['path'], 'length': Upath}, key=lambda x: x['length'], reverse=True)
+                            insort(ret, {'path': c['path'], 'length': Upath, 'relaxed': relaxed}, key=lambda x: x['length'], reverse=True)
                         elif strategy == BEST:
                           if Upath > best_Upath:
                               best_Upath = Upath
                               best_path = c['path']
+                              best_relaxed = relaxed
 
 
         if not strategy or strategy == ALL:
             return ret
 
         else: # strategy == BEST
-            return [{'path': best_path, 'length': best_Upath}]
+            return [{'path': best_path, 'length': best_Upath, 'relaxed': best_relaxed}]
 
         
 # ================================

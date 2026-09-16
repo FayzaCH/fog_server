@@ -441,7 +441,7 @@ class Protocol(RyuApp):
                 # the paths are then tried best (least cost) to worst
                 t_start = time()
                 paths = PathSelector(PATH_ALGO).select(
-                    self._topology, hosts, req, PATH_WEIGHT)
+                    self._topology, hosts, req, PATH_WEIGHT, relax = PATH_RELAX)
                 algo_time = time() - t_start
                 if paths:
                     spawn(self._save_paths, _req_id, att_no, paths, algo_time)
@@ -551,7 +551,8 @@ class Protocol(RyuApp):
             path, bws, dels, jits, loss, ts = get_path(path_dict['path'], True)
             Path(req_id, src_ip, attempt_no, path[-1], path, PATH_ALGO,
                  algo_time, bws, dels, jits, loss, PATH_WEIGHT,
-                 path_dict['length'], ts).insert()
+                 path_dict['length'], ts, 
+                 path_dict.get('relaxed', False)).insert()
         Path.as_csv(orders=('timestamp',))
 
     # the following methods are inspired by

@@ -388,7 +388,8 @@ def _adapt(obj: Model):
         timestamp = datetime.fromtimestamp(obj.timestamp)
         return (obj.req_id, obj.src, obj.attempt_no, obj.host, path,
                 obj.algorithm, obj.algo_time, bandwidths, delays, jitters,
-                loss_rates, obj.weight_type, obj.weight, timestamp)
+                loss_rates, obj.weight_type, obj.weight, timestamp, 
+                obj.relaxed)
 
 
 # decode table rows as objects
@@ -459,10 +460,11 @@ def _convert(itr: list, cls):
 
         if cls.__name__ is Path.__name__:
             timestamp = datetime.timestamp(item[13])
+            relaxed = bool(item[14]) if item[14] != None else False
             obj = Path(item[0], item[1], item[2], item[3], eval(item[4]),
                        item[5], item[6], eval(item[7]), eval(item[8]),
                        eval(item[9]), eval(item[10]), item[11], item[12],
-                       timestamp)
+                       timestamp, relaxed)
 
         ret.append(obj)
     return ret
@@ -491,7 +493,7 @@ def _get_columns(cls):
     if cls.__name__ is Path.__name__:
         return ('req_id', 'src', 'attempt_no', 'host', 'path', 'algorithm',
                 'algo_time', 'bandwidths', 'delays', 'jitters', 'loss_rates',
-                'weight_type', 'weight', 'timestamp')
+                'weight_type', 'weight', 'timestamp', 'relaxed')
 
     return ()
 
