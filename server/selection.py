@@ -271,7 +271,7 @@ class _AHPCostPathSelection(_PathSelection):
 
             feasible = not( Dp > req.get_max_delay() or Jp > req.get_max_jitter() or LRp > req.get_max_loss_rate() or BWp < req.get_min_bandwidth())
 
-            return{'path': path, 'BW': BWp, 'Delay': Dp, 'Jitter': Jp, 'LossRate': LRp, 'feasible': feasible}
+            return{'path': path, 'BW': BWp, 'D': Dp, 'J': Jp, 'LR': LRp, 'feasible': feasible}
         
         def get_coefs():
             '''
