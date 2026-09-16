@@ -81,13 +81,13 @@ class _SimpleNodeSelection(_NodeSelection):
 
 class _PathSelection:
     def select(self, topo: Topology, targets: list, req: Request,
-               weight: str = '', strategy: str = ''):
+               weight: str = '', strategy: str = '', relax: bool = False):
         return []
 
 
 class _DijkstraPathSelection(_PathSelection):
     def select(self, topo: Topology, targets: list, req: Request,
-               weight: str = '', strategy: str = ''):
+               weight: str = '', strategy: str = '', relax: bool = False):
         cutoff = None
         weight_func = 1
         if weight == DELAY_WEIGHT:
@@ -135,7 +135,7 @@ class _DijkstraPathSelection(_PathSelection):
 
 class _LeastCostPathSelection(_PathSelection):
     def select(self, topo: Topology, targets: list, req: Request,
-               weight: str = '', strategy: str = ''):
+               weight: str = '', strategy: str = '', relax: bool = False):
         def calc_cost(path: list) -> float:
             len_path = len(path)
             if len_path < 2:
@@ -224,7 +224,12 @@ class _LeastCostPathSelection(_PathSelection):
 
 class _AHPCostPathSelection(_PathSelection):
     def select(self, topo: Topology, targets: list, req: Request,
-               weight: str = '', strategy: str = ''):
+               weight: str = '', strategy: str = '', relax: bool = False):
+        '''
+            relax : decides up front whether to relax the constraints on path selection or not.
+            If True, the algorithm will return the ordered best paths based on AHP score, even
+            if they don't meet the hard requirements of min bandwidth, max delay, max jitter, and max loss rate.  
+        '''
         def calc_metrics(path: list):
             '''
                 Compute the raw (non-normalised) per-path metrics: minimum
@@ -259,11 +264,14 @@ class _AHPCostPathSelection(_PathSelection):
 
 
             #exclude paths that don't match required values of bw, delay, jitter and LR
-            if (Dp > req.get_max_delay() or Jp > req.get_max_jitter() or 
-                LRp > req.get_max_loss_rate() or BWp < req.get_min_bandwidth()):
-                return None
+            #if (Dp > req.get_max_delay() or Jp > req.get_max_jitter() or 
+            #    LRp > req.get_max_loss_rate() or BWp < req.get_min_bandwidth()):
+            #    return None
+            #flag paths that don't match required values of bw, delay, jitter and Loss Rate
 
-            return{'path': path, 'BW': BWp, 'Delay': Dp, 'Jitter': Jp, 'LossRate': LRp}
+            feasible = not( Dp > req.get_max_delay() or Jp > req.get_max_jitter() or LRp > req.get_max_loss_rate() or BWp < req.get_min_bandwidth())
+
+            return{'path': path, 'BW': BWp, 'Delay': Dp, 'Jitter': Jp, 'LossRate': LRp, 'feasible': feasible}
         
         def get_coefs():
             '''
@@ -324,10 +332,10 @@ class _AHPCostPathSelection(_PathSelection):
         candidates = []
         for path in raw_paths:
             try:
-                metrics = calc_metrics(path)
+                metrics = calc_metrics(path)     
             except:
                 metrics = None
-            if metrics is not None:
+            if metrics is not None and (relax or metrics['feasible']):
                 candidates.append(metrics)
 
         if not strategy or strategy == ALL:
@@ -348,19 +356,19 @@ class _AHPCostPathSelection(_PathSelection):
         if candidates:
             bw_min = min(c['BW'] for c in candidates)
             bw_max = max(c['BW'] for c in candidates)
-            d_min = min(c['Delay'] for c in candidates)
-            d_max = max(c['Delay'] for c in candidates)
-            j_min = min(c['Jitter'] for c in candidates)
-            j_max = max(c['Jitter'] for c in candidates)
-            lr_min = min(c['LossRate'] for c in candidates)
-            lr_max = max(c['LossRate'] for c in candidates)
+            d_min = min(c['D'] for c in candidates)
+            d_max = max(c['D'] for c in candidates)
+            j_min = min(c['J'] for c in candidates)
+            j_max = max(c['J'] for c in candidates)
+            lr_min = min(c['LR'] for c in candidates)
+            lr_max = max(c['LR'] for c in candidates)
 
             for c in candidates:
                         mu_bw = normalize(c['BW'], bw_min, bw_max,
                                             higher_is_better=True)
-                        mu_D = normalize(c['Delay'], d_min, d_max, higher_is_better = False)
-                        mu_J = normalize(c['Jitter'], j_min, j_max, higher_is_better=False)
-                        mu_LR = normalize(c['LossRate'], lr_min, lr_max, higher_is_better=False)
+                        mu_D = normalize(c['D'], d_min, d_max, higher_is_better = False)
+                        mu_J = normalize(c['J'], j_min, j_max, higher_is_better=False)
+                        mu_LR = normalize(c['LR'], lr_min, lr_max, higher_is_better=False)
 
                         Upath = (coef_bw * mu_bw) + (coef_Delay * mu_D) + (coef_Jitter * mu_J) + (coef_LossRate * mu_LR)
 
@@ -463,9 +471,13 @@ class PathSelector:
         algorithm. Calculates link weights and gets the shortest path from the
         source node to each potential destination node.
 
-        LEASTCOST: Best path selection based on path cost that is calculated
+        LEASTCOST (CBP): Best path selection based on path cost that is calculated
         with an equation that includes bandwidth cost, delay cost, jitter cost,
         and loss rate cost.
+
+        AHP : Best path selection based on path score that is calculated with an 
+        equation that includes coefficients for bandwidth, delay, jitter, and loss
+        rate evaluated for each CoS using the Analytic Hierarchy Process (AHP) Method.
 
         Methods:
         --------
@@ -486,17 +498,21 @@ class PathSelector:
             self._algorithm = _DijkstraPathSelection()
 
     def select(self, topo: Topology, targets: list, req: Request,
-               weight: str = '', strategy: str = ''):
+               weight: str = '', strategy: str = '', relax: bool = False):
         '''
             Select path(s) in graph from req.src to target Nodes, that satisfy
             req through given algorithm and based on given weight (HOP, DELAY,
             or COST) and given strategy (ALL or BEST). Default weight is HOP 
             (all edges are equal). Default strategy is ALL.
 
+            relax (only for AHP algorithm; ignored for other algorithms) : if True, every
+            structurally valid path is considered, even if it doesn't meet the hard reqirements
+            of bw, delay, jitter, and loss rate. Default is False. 
+
             Returns list of dicts of selected path(s) and length(s).
         '''
 
-        return self._algorithm.select(topo, targets, req, weight, strategy)
+        return self._algorithm.select(topo, targets, req, weight, strategy, relax)
 
 
 # =============

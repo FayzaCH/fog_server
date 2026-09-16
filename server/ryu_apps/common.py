@@ -5,7 +5,7 @@ from logging import INFO, WARNING
 from ryu.base.app_manager import lookup_service_brick
 from ryu.lib.hub import sleep
 
-from selection import NODE_ALGORITHMS, PATH_ALGORITHMS, PATH_WEIGHTS
+from selection import NODE_ALGORITHMS, PATH_ALGORITHMS, PATH_WEIGHTS, AHP_PATH
 from logger import console, file
 from consts import *
 import config
@@ -97,6 +97,7 @@ PROTO_SEND_TO = _proto_send_to
 _node_algo = PROTO_SEND_TO
 _path_algo = 'STP'
 _path_weight = None
+_path_relax = False
 if PROTO_SEND_TO == SEND_TO_ORCHESTRATOR:
     _node_algo = getenv('ORCHESTRATOR_NODE_ALGORITHM', None)
     if _node_algo not in NODE_ALGORITHMS:
@@ -127,9 +128,22 @@ if PROTO_SEND_TO == SEND_TO_ORCHESTRATOR:
                 console.warning('ORCHESTRATOR:PATH_WEIGHT parameter '
                                 'invalid or missing from conf.yml. '
                                 'Defaulting to %s', str(_path_weight))
+
+            # PATH_RELAX only applies to the AHP path algorithm.
+            if _path_algo == AHP_PATH:
+                _path_relax = getenv('ORCHESTRATOR_PATH_RELAX', '').upper()
+                if _path_relax not in ('TRUE', 'FALSE'):
+                    console.warning('ORCHESTRATOR:PATH_RELAX parameter invalid or missing from ' 
+                                    'conf.yml. Defaulting to FALSE')
+                    file.warning('ORCHESTRATOR:PATH_RELAX parameter (%s) '
+                                 'invalid or missing from conf.yml', _path_relax)
+                    path_relax = 'FALSE'
+                _path_relax = _path_relax == 'TRUE'    
+                
 NODE_ALGO = _node_algo
 PATH_ALGO = _path_algo
 PATH_WEIGHT = _path_weight
+PATH_RELAX = _path_relax
 
 try:
     MONITOR_PERIOD = float(getenv('MONITOR_PERIOD', None))

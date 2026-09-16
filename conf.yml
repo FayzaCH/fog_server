@@ -90,6 +90,8 @@ ORCHESTRATOR:
     # options for LEASTCOST are COST | AHP (default is COST)
     # options for AHP are AHP (default is AHP)
   PATH_WEIGHT: AHP
+  
+  PATH_RELAX : FALSE
 
 PROTOCOL:
   # requests destination (default is NONE)
