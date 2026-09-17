@@ -36,6 +36,29 @@ from model import Topology, Node, Request
 from logger import console, file
 
 
+def default_cutoff(topo: Topology, cutoff: int = None) -> int:
+    '''
+        Returns cutoff unchanged if explicitly given (not None). Otherwise,
+        defalts to the topology's (cached) diameter, bounding 
+        all_simple_paths to paths no longer than the longest of the 
+        graph's shortest paths -- any beyond that can never be a 
+        useful (let alone optimal) candidate. Falls back to None (no 
+        limit) if the graph isn't connected, since diameter is undefined
+        in that case.
+    '''
+    if cutoff is not None:
+        return cutoff
+    d = topo.get_diameter()
+    if d is None:
+        console.warning('Topology graph is not connected: cannot use its '
+                        'diameter as a path selection cutoff. Falling back '
+                        'to no cutoff (may be slower).')
+        file.warning('Topology graph is not connected: cannot use its '
+                     'diameter as a path selection cutoff')
+
+    return d
+        
+
 # =================================
 #     Node Selection Algorithms
 # =================================
@@ -81,19 +104,21 @@ class _SimpleNodeSelection(_NodeSelection):
 
 class _PathSelection:
     def select(self, topo: Topology, targets: list, req: Request,
-               weight: str = '', strategy: str = '', relax: bool = False):
+               weight: str = '', strategy: str = '', relax: bool = False,
+               cutoff: int = None):
         return []
 
 
 class _DijkstraPathSelection(_PathSelection):
     def select(self, topo: Topology, targets: list, req: Request,
-               weight: str = '', strategy: str = '', relax: bool = False):
-        cutoff = None
+               weight: str = '', strategy: str = '', relax: bool = False,
+               cutoff: int = None):
+        weight_cutoff = None
         weight_func = 1
         if weight == DELAY_WEIGHT:
             def weight_func(_, __, d):
                 return d['link'].get_delay()
-            cutoff = req.get_max_delay()
+            weight_cutoff = req.get_max_delay()
 
         # even if we call networkx.dijkstra_path(...) with specific targets
         # networkx will always call single_source_dijkstra(...) and calculate
@@ -101,7 +126,7 @@ class _DijkstraPathSelection(_PathSelection):
         # so might as well get all paths and reformat them as we want
         graph = topo.get_graph()
         lengths, paths = single_source_dijkstra(graph, req.src.id,
-                                                cutoff=cutoff,
+                                                cutoff=weight_cutoff,
                                                 weight=weight_func)
 
         if not strategy or strategy == ALL:
@@ -135,7 +160,8 @@ class _DijkstraPathSelection(_PathSelection):
 
 class _LeastCostPathSelection(_PathSelection):
     def select(self, topo: Topology, targets: list, req: Request,
-               weight: str = '', strategy: str = '', relax: bool = False):
+               weight: str = '', strategy: str = '', relax: bool = False,
+               cutoff: int = None):
         def calc_cost(path: list) -> float:
             len_path = len(path)
             if len_path < 2:
@@ -184,8 +210,10 @@ class _LeastCostPathSelection(_PathSelection):
             return CBWp / denom_phi
 
         graph = topo.get_graph()
+        cutoff = default_cutoff(topo, cutoff)
         paths = all_simple_paths(graph, req.src.id,
-                                 [target.id for target in targets])
+                                 [target.id for target in targets],
+                                 cutoff=cutoff)
 
         if not strategy or strategy == ALL:
             ret = []
@@ -224,11 +252,16 @@ class _LeastCostPathSelection(_PathSelection):
 
 class _AHPCostPathSelection(_PathSelection):
     def select(self, topo: Topology, targets: list, req: Request,
-               weight: str = '', strategy: str = '', relax: bool = False):
+               weight: str = '', strategy: str = '', relax: bool = False,
+               cutoff: int = None):
         '''
             relax : decides up front whether to relax the constraints on path selection or not.
             If True, the algorithm will return the ordered best paths based on AHP score, even
             if they don't meet the hard requirements of min bandwidth, max delay, max jitter, and max loss rate.  
+
+            cutoff : maximum path length (in hops/edges) considered by all_simple_paths.
+            Paths longer than cutoff are not even generated, which bounds the (otherwise
+            combinatorial) search space. Default is None (no limit, as before).
         '''
         def calc_metrics(path: list):
             '''
@@ -326,8 +359,10 @@ class _AHPCostPathSelection(_PathSelection):
             return[]
         coef_bw, coef_Delay, coef_Jitter, coef_LossRate = coefs
         graph = topo.get_graph()
+        cutoff = default_cutoff(topo, cutoff)
         raw_paths = all_simple_paths(graph, req.src.id,
-                                     [target.id for target in targets])
+                                     [target.id for target in targets],
+                                     cutoff=cutoff)
         # --- Pass 1: gather raw metrics for every feasible path ---
         candidates = []
         for path in raw_paths:
@@ -373,14 +408,17 @@ class _AHPCostPathSelection(_PathSelection):
 
                         Upath = (coef_bw * mu_bw) + (coef_Delay * mu_D) + (coef_Jitter * mu_J) + (coef_LossRate * mu_LR)
 
-                        #a candidate is "relaxed" if it wouldn't have been considered had relax been
-                        # False (i.e. it fails req's bw, delay, jitter, Loss Rate requirements).
+                        # a candidate is "relaxed" if it wouldn't have been
+                        #  considered had relax been False (i.e. it fails
+                        #  req's bw/delay/jitter/loss-rate requirements).
 
                         relaxed = not c['feasible']
 
 
                         if not strategy or strategy == ALL:
-                            insort(ret, {'path': c['path'], 'length': Upath, 'relaxed': relaxed}, key=lambda x: x['length'], reverse=True)
+                            insort(ret, {'path': c['path'], 'length': Upath,
+                                         'relaxed': relaxed},
+                                   key=lambda x: x['length'], reverse=True)
                         elif strategy == BEST:
                           if Upath > best_Upath:
                               best_Upath = Upath
@@ -392,7 +430,8 @@ class _AHPCostPathSelection(_PathSelection):
             return ret
 
         else: # strategy == BEST
-            return [{'path': best_path, 'length': best_Upath, 'relaxed': best_relaxed}]
+            return [{'path': best_path, 'length': best_Upath,
+                     'relaxed': best_relaxed}]
 
         
 # ================================
@@ -506,7 +545,8 @@ class PathSelector:
             self._algorithm = _DijkstraPathSelection()
 
     def select(self, topo: Topology, targets: list, req: Request,
-               weight: str = '', strategy: str = '', relax: bool = False):
+               weight: str = '', strategy: str = '', relax: bool = False,
+               cutoff: int = None):
         '''
             Select path(s) in graph from req.src to target Nodes, that satisfy
             req through given algorithm and based on given weight (HOP, DELAY,
@@ -517,10 +557,17 @@ class PathSelector:
             structurally valid path is considered, even if it doesn't meet the hard reqirements
             of bw, delay, jitter, and loss rate. Default is False. 
 
+            cutoff (only for LEASTCOST and AHP algorithms; ignored by DIJKSTRA) : maximum
+            path length in hops considered. Bounds the number of simple paths explored,
+            which can grow combinatorially in dense/large topologies. Default is None,
+            in which case the topology graph's diameter is used automatically (no path
+            longer than that could ever be a useful candidate)
+
             Returns list of dicts of selected path(s) and length(s).
         '''
 
-        return self._algorithm.select(topo, targets, req, weight, strategy, relax)
+        return self._algorithm.select(topo, targets, req, weight, strategy,
+                                       relax, cutoff)
 
 
 # =============
