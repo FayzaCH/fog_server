@@ -27,22 +27,19 @@
 '''
 
 
-from platform import python_version
-from bisect import insort_left, bisect_left
-
 from networkx import single_source_dijkstra, all_simple_paths
 
 from model import Topology, Node, Request
 from logger import console, file
 
 
-def default_cutoff(topo: Topology, cutoff: int = None) -> int:
+def _default_cutoff(topo: Topology, cutoff: int = None) -> int:
     '''
         Returns cutoff unchanged if explicitly given (not None). Otherwise,
-        defalts to the topology's (cached) diameter, bounding 
-        all_simple_paths to paths no longer than the longest of the 
-        graph's shortest paths -- any beyond that can never be a 
-        useful (let alone optimal) candidate. Falls back to None (no 
+        defaults to the topology's (cached) diameter, bounding
+        all_simple_paths to paths no longer than the longest of the
+        graph's shortest paths -- anything beyond that can never be a
+        useful (let alone optimal) candidate. Falls back to None (no
         limit) if the graph isn't connected, since diameter is undefined
         in that case.
     '''
@@ -55,9 +52,9 @@ def default_cutoff(topo: Topology, cutoff: int = None) -> int:
                         'to no cutoff (may be slower).')
         file.warning('Topology graph is not connected: cannot use its '
                      'diameter as a path selection cutoff')
-
     return d
-        
+
+
 
 # =================================
 #     Node Selection Algorithms
@@ -134,10 +131,9 @@ class _DijkstraPathSelection(_PathSelection):
             for target in targets:
                 targ_id = target.id
                 if targ_id in lengths:
-                    insort(
-                        ret,
-                        {'path': paths[targ_id], 'length': lengths[targ_id]},
-                        key=lambda x: x['length'], reverse=False)
+                    ret.append(
+                        {'path': paths[targ_id], 'length': lengths[targ_id]})
+            ret.sort(key=lambda x: x['length'])
             return ret
 
         elif strategy == BEST:
@@ -210,7 +206,7 @@ class _LeastCostPathSelection(_PathSelection):
             return CBWp / denom_phi
 
         graph = topo.get_graph()
-        cutoff = default_cutoff(topo, cutoff)
+        cutoff = _default_cutoff(topo, cutoff)
         paths = all_simple_paths(graph, req.src.id,
                                  [target.id for target in targets],
                                  cutoff=cutoff)
@@ -229,8 +225,7 @@ class _LeastCostPathSelection(_PathSelection):
                 Cpath = float('inf')
 
             if not strategy or strategy == ALL:
-                insort(ret, {'path': path, 'length': Cpath},
-                       key=lambda x: x['length'], reverse=False)
+                ret.append({'path': path, 'length': Cpath})
 
             elif strategy == BEST:
                 if Cpath < best_Cpath:
@@ -238,6 +233,7 @@ class _LeastCostPathSelection(_PathSelection):
                     best_path = path
 
         if not strategy or strategy == ALL:
+            ret.sort(key=lambda x: x['length'])
             return ret
 
         elif strategy == BEST:
@@ -257,7 +253,7 @@ class _AHPCostPathSelection(_PathSelection):
         '''
             relax : decides up front whether to relax the constraints on path selection or not.
             If True, the algorithm will return the ordered best paths based on AHP score, even
-            if they don't meet the hard requirements of min bandwidth, max delay, max jitter, and max loss rate.  
+            if they don't meet the hard requirements of min bandwidth, max delay, max jitter, and max loss rate.
 
             cutoff : maximum path length (in hops/edges) considered by all_simple_paths.
             Paths longer than cutoff are not even generated, which bounds the (otherwise
@@ -359,7 +355,7 @@ class _AHPCostPathSelection(_PathSelection):
             return[]
         coef_bw, coef_Delay, coef_Jitter, coef_LossRate = coefs
         graph = topo.get_graph()
-        cutoff = default_cutoff(topo, cutoff)
+        cutoff = _default_cutoff(topo, cutoff)
         raw_paths = all_simple_paths(graph, req.src.id,
                                      [target.id for target in targets],
                                      cutoff=cutoff)
@@ -409,16 +405,13 @@ class _AHPCostPathSelection(_PathSelection):
                         Upath = (coef_bw * mu_bw) + (coef_Delay * mu_D) + (coef_Jitter * mu_J) + (coef_LossRate * mu_LR)
 
                         # a candidate is "relaxed" if it wouldn't have been
-                        #  considered had relax been False (i.e. it fails
-                        #  req's bw/delay/jitter/loss-rate requirements).
-
+                        # considered had relax been False (i.e. it fails
+                        # req's bw/delay/jitter/loss-rate requirements)
                         relaxed = not c['feasible']
 
-
                         if not strategy or strategy == ALL:
-                            insort(ret, {'path': c['path'], 'length': Upath,
-                                         'relaxed': relaxed},
-                                   key=lambda x: x['length'], reverse=True)
+                            ret.append({'path': c['path'], 'length': Upath,
+                                        'relaxed': relaxed})
                         elif strategy == BEST:
                           if Upath > best_Upath:
                               best_Upath = Upath
@@ -427,6 +420,7 @@ class _AHPCostPathSelection(_PathSelection):
 
 
         if not strategy or strategy == ALL:
+            ret.sort(key=lambda x: x['length'], reverse=True)
             return ret
 
         else: # strategy == BEST
@@ -561,51 +555,10 @@ class PathSelector:
             path length in hops considered. Bounds the number of simple paths explored,
             which can grow combinatorially in dense/large topologies. Default is None,
             in which case the topology graph's diameter is used automatically (no path
-            longer than that could ever be a useful candidate)
+            longer than that could ever be a useful candidate).
 
             Returns list of dicts of selected path(s) and length(s).
         '''
 
         return self._algorithm.select(topo, targets, req, weight, strategy,
                                        relax, cutoff)
-
-
-# =============
-#     UTILS
-# =============
-
-
-class _KeyWrapper:
-    def __init__(self, iterable, key, reverse):
-        self.it = iterable
-        self.key = key
-        self.reverse = reverse
-
-    def __getitem__(self, i):
-        val=self.key(self.it[i])
-        if self.reverse:
-            return -val
-        return val
-
-    def __len__(self):
-        return len(self.it)
-
-
-def insort(a, x, key=None, reverse=False):
-    _key_func = key if key is not None else lambda val:val
-
-    pyv_maj, pyv_min, _ = python_version().split('.')
-    pyv = int(pyv_maj) * 100 + int(pyv_min)
-    search_value = _key_func(x)
-    if reverse:
-        search_value = -search_value
-
-    if pyv < 310:
-        bslindex = bisect_left(_KeyWrapper(a, key=_key_func, reverse=reverse), search_value)
-        a.insert(bslindex, x)
-    else:
-        def get_bisect_key(val):
-            val=_key_func(val)
-            return -val if reverse else val
-        
-        insort_left(a, x, key=key)
