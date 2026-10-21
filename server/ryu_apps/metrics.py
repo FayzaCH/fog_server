@@ -13,6 +13,7 @@ from model import NodeType
 from logger import console, file
 from common import *
 import config
+import math
 
 
 _os_verify = getenv('OPENSTACK_VERIFY_CERT', '').upper()
@@ -299,10 +300,10 @@ class Metrics(RyuApp):
                                 # gnocchi can't read inf values
                                 # so we change to -1
                                 delay = link.get_delay()
-                                if delay == float('inf'):
+                                if math.isinf(delay) or math.isnan(delay): 
                                     delay = -1
                                 jitter = link.get_jitter()
-                                if jitter == float('inf'):
+                                if math.isinf(jitter) or math.isnan(jitter):
                                     jitter = -1
                                 measures.update({
                                     link_id: {
