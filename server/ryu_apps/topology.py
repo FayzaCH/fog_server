@@ -134,18 +134,23 @@ class Topology(RyuApp, Topo):
         switch = ev.switch
         datapath = switch.dp
         dpid = datapath.id
+        #console.info('***** 1> _switch_enter_handler datapath = %s, dpid = %s ', str(switch.dp), str(dpid))
         self.add_node(dpid, datapath.is_active,
                       NodeType(NodeType.SWITCH), f's_{dpid:x}')
         for port in switch.ports:
+            #console.info('  *****_switch_enter_handler port_name = %s , port_number = %s', str(port.name.decode()), str(port.port_no))
             self.add_interface(dpid, port.name.decode(), port.port_no)
+            #self._port_add_handler(ev, 1)
+	
 
     @set_ev_cls(EventSwitchLeave)
     def _switch_leave_handler(self, ev):
         self.delete_node(ev.switch.dp.id)
 
     @set_ev_cls(EventPortAdd)
-    def _port_add_handler(self, ev, retry=3):
-        port = ev.port
+    def _port_add_handler(self, ev, retry=5):
+        #port = ev.port
+        #console.info('****** _port_add_handler : port.dpid = %s, port_name = %s, port.port_no = %s', str(port.dpid), str(port.name.decode()), str(port.port_no))
         if not self.add_interface(port.dpid, port.name.decode(), port.port_no):
             # if there is any error or exception, mainly from the asynchronous
             # nature of event handlers (switch not yet added, for example),
@@ -170,6 +175,7 @@ class Topology(RyuApp, Topo):
     def _link_add_handler(self, ev, retry=3):
         src = ev.link.src
         dst = ev.link.dst
+        console.info('****link_add_handler link : src %s --- dst %s', str(src),str(dst))
         if not self.add_link(src.dpid, dst.dpid, src.name.decode(),
                              dst.name.decode(), False):
             # if there is any error or exception, mainly from the asynchronous
@@ -211,8 +217,10 @@ class Topology(RyuApp, Topo):
     def _add_host_links(self):
         while True:
             for mac in list(self._interfaces):
+                #console.info('**** mac = %s', mac)
                 node_id = self.get_by_mac(mac, 'node_id')
                 dpid = self.get_by_mac(mac, 'dpid')
+                #console.info('**** add_host_link : link node_id =%s, dpid = %s ', node_id, dpid )
                 if self.get_node(node_id) and self.get_node(dpid):
                     name = self.get_by_mac(mac, 'name')
                     port_name = self.get_by_mac(mac, 'port_name')
@@ -223,6 +231,8 @@ class Topology(RyuApp, Topo):
                         self.add_link(
                             dpid, node_id, port_name, name, False)
             sleep(1)
+            #console.info('***** add_host_link topo_interfaces = %s ',str(self._interfaces))
+
 
     def _check_clients(self):
         serve(UDP_PORT, UDP_TIMEOUT)

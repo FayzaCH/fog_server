@@ -3,6 +3,9 @@
     used programmatically through the serve(...) method. It runs the RyuMain 
     app using the 'ryu run' command (or 'ryu-manager' if not found) with 
     the --observe-links option. 
+    To enable Controller probing lauch the server with "overhead_prob.py" as 
+    argument so the measurment will be done and saved in the data/ctrl_overhead.csv file.
+    Delete the data/ctrl_overhead.csv file before running the server to avoid appending to an existing file. 
 '''
 
 
@@ -47,7 +50,11 @@ RYU_BIN_PATH = join(RYU_PATH, 'bin', 'ryu')
 
 RYU_MAIN_PATH = dirname(abspath(__file__)) + '/ryu_main.py'
 
-
+####
+import logging
+logging.getLogger('ryu.controller.ofp_handler').setLevel(logging.DEBUG)
+logging.getLogger('ryu.ofproto').setLevel(logging.DEBUG)
+###
 def serve():
     cmd = [RYU_BIN_PATH if exists(RYU_BIN_PATH) else 'ryu', 'run',
            RYU_MAIN_PATH, '--observe-links', '--ofp-tcp-listen-port',

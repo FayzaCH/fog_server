@@ -219,6 +219,8 @@ class RyuMainAPI(ControllerBase):
             json = req.json
             # check if node already exists
             id = self._get_post(json, 'id', required=True)
+            console.info('***********in add_node %s  ', self._topology.get_node(id))
+
             if self._topology.get_node(id):
                 return HTTPResponse(status=HTTP_EXISTS)
 
@@ -240,6 +242,7 @@ class RyuMainAPI(ControllerBase):
             if 'interfaces' in json:
                 for interface in json['interfaces']:
                     # required data fields for interfaces
+                    console.info('******* node_id = %s name = %s', id, self._get_post(interface, 'name', str, True))
                     queue.append((self._add_interface, {
                         'node_id': id,
                         'name': self._get_post(interface, 'name', str, True),
@@ -454,8 +457,11 @@ class RyuMainAPI(ControllerBase):
 
     @route('iperf3', '/iperf3/{node_id}/{iface}', methods=['GET'])
     def get_iperf3_target(self, _, node_id, iface):
+        console.info("**** get target for node_id = %s, iface =%s ", str(node_id), str(iface))
         # check if resource exists
         node = self._topology.get_node(node_id)
+        console.info("\\**** if node existe node = %s", str(node))
+        
         if not node:
             try:
                 # could be switch

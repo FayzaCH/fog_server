@@ -38,7 +38,7 @@ from time import time
 from enum import Enum
 from datetime import datetime
 
-from networkx import DiGraph
+from networkx import DiGraph, diameter
 from networkx.exception import NetworkXError
 
 from consts import HREQ, RREQ, DREQ, DRES, FAIL
@@ -449,6 +449,7 @@ class Node(Model):
 
     def set_cpu_free(self, cpu_free: int = 0):
         self.specs.cpu_free = cpu_free
+        #console.info("++cpu_free= %s", str(cpu_free))
         self.set_timestamp()
 
     def get_memory_total(self):
@@ -615,6 +616,9 @@ class Topology(Model):
         --------
         get_graph(): Returns NetworkX DiGraph object.
 
+        get_diameter(): Returns the topology graph's diameter, cached until
+        the topology's nodes or links change
+
         get_node(id): Returns Node object identified by id.
 
         add_node(id, state, type, label, threshold): Create Node object and 
@@ -680,6 +684,38 @@ class Topology(Model):
         # node_id, name, ipv4, dpid, port_name, and port_no
         self._ips = {}  # maps host interface ipv4 to dict containing
         # node_id, name, mac, dpid, port_name, and port_no
+        self._diameter = None # cached graph diameter (None : not computed
+        # yet, or graph disconnected -- see _diameter_dirty to tell them
+        # apart)
+        self._diameter_dirty = True # set whenever a node/link is added or
+        # removed, so get_diameter() knows to recompute
+
+    def _invalidate_diameter(self):
+        '''
+            Marks the cached graph diameter as stale. Called internally 
+            whenever the topology's nodes or links change
+        '''
+        self._diameter_dirty = True
+
+    def get_diameter(self):
+        '''
+            returns the topology graph's diameter (the length, in hops, of 
+            its longest shortest path), computed lazily and cached until 
+            the topology changes ( a node or a link is added or removed).
+
+            Returns None if the graph isn't connected, since diameter is 
+            undefined in that case (this result is cached too, so it 
+            isn't recomputed on every call while the graph stays
+            disconnected)
+        '''
+
+        if self._diameter_dirty:
+            try:
+                self._diameter = diameter(self.get_graph())
+            except NetworkXError:
+                self._diameter = None
+            self._diameter_dirty = False
+        return self._diameter
 
     def get_graph(self):
         '''
@@ -706,6 +742,7 @@ class Topology(Model):
             threshold = 1
         node.threshold = threshold
         self.get_graph().add_node(id, node=node)
+        self._invalidate_diameter()
         return True
 
     def delete_node(self, id):
@@ -719,6 +756,7 @@ class Topology(Model):
         except NetworkXError:
             pass
         self._src_port_to_dst.pop(id, None)
+        self._invalidate_diameter()
 
     def get_interface(self, node_id, ref) -> Interface:
         '''
@@ -801,6 +839,7 @@ class Topology(Model):
                 self._src_port_to_dst.setdefault(src_id, {})
                 self._src_port_to_dst[src_id][src_port_name] = dst_id
                 self._src_port_to_dst[src_id][src_port_num] = dst_id
+                self._invalidate_diameter()
                 return True
         return False
 
@@ -815,6 +854,7 @@ class Topology(Model):
         except NetworkXError:
             pass
         self._src_port_to_dst.pop(src_id, None)
+        self._invalidate_diameter()
 
     def get_nodes(self, as_dict: bool = False):
         '''
@@ -1336,13 +1376,15 @@ class Path(Model):
         weight: Path weight value.
 
         timestamp: Path timestamp.
+
+        relaxed: True if this path was selected in AHP relaxed mode, False otherwise. Default is False.
     '''
 
     def __init__(self, req_id, src: str, attempt_no: int, host: str,
                  path: list, algorithm: str, algo_time: float,
                  bandwidths: list, delays: list, jitters: list,
                  loss_rates: list, weight_type: str, weight: float,
-                 timestamp: float = 0):
+                 timestamp: float = 0, relaxed: bool = False):
         self.req_id = req_id
         self.src = src
         self.attempt_no = attempt_no
@@ -1357,3 +1399,4 @@ class Path(Model):
         self.weight_type = weight_type
         self.weight = weight
         self.timestamp = timestamp if timestamp else time()
+        self.relaxed = relaxed

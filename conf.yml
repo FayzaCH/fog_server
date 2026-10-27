@@ -4,7 +4,8 @@ CONTROLLER:
   
   # controller's decoy MAC (no default, required)
     # can be anything but must not already exist
-  DECOY_MAC: dd:dd:dd:dd:dd:dd
+  #DECOY_MAC: dd:dd:dd:dd:dd:dd
+  DECOY_MAC: 00:00:00:00:00:99
   
   # controller's decoy IP (no default, required)
     # must be in subnet of hosts and must not already exist
@@ -25,13 +26,13 @@ NETWORK:
     # STP must be enabled/disabled manually
 
   # scenario 1
-  STP_ENABLED: True
+  #STP_ENABLED: True
 
   # scenario 2
   # STP_ENABLED: True
 
   # scenario 3
-  # STP_ENABLED: False
+  STP_ENABLED: False
   
   # ARP table refresh interval (in seconds, default is 60)
   ARP_REFRESH: 60
@@ -42,15 +43,15 @@ NETWORK:
   IP_POOL: >
     10.0.0.1:10.0.0.5,
     10.10.0.10:10.10.0.12,
-    10.10.0.100,
     10.20.0.10:10.20.0.12,
-    10.20.0.100,
+    10.20.0.101,
     10.30.0.10:10.30.0.12,
     10.30.0.100,
-    10.50.0.3,
+    10.50.0.10,
     10.10.0.254,
     10.20.0.254,
     10.30.0.254,
+    10.50.0.254,
     10.0.0.250
 
 ORCHESTRATOR:
@@ -68,13 +69,13 @@ ORCHESTRATOR:
     # only works if STP is disabled (multi-path)
   
   # scenario 1
-  PATHS: False
+  #PATHS: False
 
   # scenario 2
   # PATHS: False
 
   # scenario 3
-  # PATHS: True
+  PATHS: True
 
   # node selection algorithm
     # options are SIMPLE (default is SIMPLE)
@@ -82,12 +83,15 @@ ORCHESTRATOR:
 
   # path selection algorithm
     # options are DIJKSTRA | LEASTCOST (default is DIJKSTRA)
-  PATH_ALGORITHM: LEASTCOST
+  PATH_ALGORITHM: AHP
 
   # path weights considered
     # options for DIJKSTRA are HOP | DELAY (default is HOP)
-    # options for LEASTCOST are COST (default is COST)
-  PATH_WEIGHT: COST
+    # options for LEASTCOST are COST | AHP (default is COST)
+    # options for AHP are AHP (default is AHP)
+  PATH_WEIGHT: AHP
+
+  PATH_RELAX: FALSE
 
 PROTOCOL:
   # requests destination (default is NONE)
@@ -96,13 +100,13 @@ PROTOCOL:
     # NONE means protocol is not used
 
   # scenario 1
-  SEND_TO: BROADCAST
+  #SEND_TO: BROADCAST
 
   # scenario 2
   # SEND_TO: ORCHESTRATOR
 
   # scenario 3
-  # SEND_TO: ORCHESTRATOR
+  SEND_TO: ORCHESTRATOR
   
   # time to wait for answer after sending a packet (in seconds, default is 1)
   TIMEOUT: 1
@@ -125,7 +129,7 @@ MONITOR:
   PERIOD: 2
   
   # number of samples of measures to retain (default and minimum is 2)
-  SAMPLES: 5
+  SAMPLES: 4
   
   # enable/disable printing monitoring data on console (default is False)
   VERBOSE: True

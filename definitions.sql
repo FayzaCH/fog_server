@@ -110,6 +110,7 @@ create table if not exists paths (
     weight_type text,
     weight real,
     timestamp text,
+    relaxed integer default 0,
 
     primary key (req_id, src, attempt_no, host, path),
 

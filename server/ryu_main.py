@@ -17,6 +17,12 @@ require_app('ryu.app.rest_topology')
 
 # hide WSGI messages on console
 getLogger('ryu.lib.hub').setLevel(WARNING)
+####
+import logging
+logging.getLogger('ryu.controller.ofp_handler').setLevel(logging.DEBUG)
+logging.getLogger('ryu.ofproto').setLevel(logging.DEBUG)
+###
+
 
 
 class RyuMain(RyuApp):
@@ -71,7 +77,7 @@ class RyuMain(RyuApp):
         self.flowmanager.wsgi = self.wsgi
         self.flowmanager.dpset = kwargs['dpset']
 
-        # spawn(self._test)
+        spawn(self._test)
 
     def _test(self):
         from pprint import pprint
