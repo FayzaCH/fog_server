@@ -149,7 +149,7 @@ class Topology(RyuApp, Topo):
 
     @set_ev_cls(EventPortAdd)
     def _port_add_handler(self, ev, retry=5):
-        #port = ev.port
+        port = ev.port
         #console.info('****** _port_add_handler : port.dpid = %s, port_name = %s, port.port_no = %s', str(port.dpid), str(port.name.decode()), str(port.port_no))
         if not self.add_interface(port.dpid, port.name.decode(), port.port_no):
             # if there is any error or exception, mainly from the asynchronous
