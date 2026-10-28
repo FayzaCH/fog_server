@@ -520,7 +520,7 @@ class RyuMainAPI(ControllerBase):
 
             for n in graph.nodes:
                 if self._topology.get_node(n).type == NodeType.SWITCH:
-                    dpid = n.as_dict()['dpid']
+                    dpid = n.get_main_interface().get('dpid')
                     switches.add(dpid)
                     topo_display.add_node(dpid, node_type='switch')
 
