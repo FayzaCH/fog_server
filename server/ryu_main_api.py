@@ -223,8 +223,7 @@ class RyuMainAPI(ControllerBase):
             json = req.json
             # check if node already exists
             id = self._get_post(json, 'id', required=True)
-            console.info('***********in add_node %s  ', self._topology.get_node(id))
-
+            
             if self._topology.get_node(id):
                 return HTTPResponse(status=HTTP_EXISTS)
 
@@ -246,7 +245,6 @@ class RyuMainAPI(ControllerBase):
             if 'interfaces' in json:
                 for interface in json['interfaces']:
                     # required data fields for interfaces
-                    console.info('******* node_id = %s name = %s', id, self._get_post(interface, 'name', str, True))
                     queue.append((self._add_interface, {
                         'node_id': id,
                         'name': self._get_post(interface, 'name', str, True),
