@@ -175,7 +175,6 @@ class Topology(RyuApp, Topo):
     def _link_add_handler(self, ev, retry=3):
         src = ev.link.src
         dst = ev.link.dst
-        console.info('****link_add_handler link : src %s --- dst %s', str(src),str(dst))
         if not self.add_link(src.dpid, dst.dpid, src.name.decode(),
                              dst.name.decode(), False):
             # if there is any error or exception, mainly from the asynchronous
