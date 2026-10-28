@@ -114,6 +114,8 @@ from ryu_apps.topology import UDP_PORT, UDP_TIMEOUT
 from consts import ROOT_PATH, SEND_TO_ORCHESTRATOR
 from logger import console, file
 import config
+from io import BytesIO
+
 
 
 try:
@@ -509,9 +511,21 @@ class RyuMainAPI(ControllerBase):
     # for testing
     @route('test', '/topology_png')
     def topology(self, _):
-        clf()
-        draw(self._topology.get_graph(), with_labels=True)
-        savefig(ROOT_PATH + '/data/' + str(time()) + '.png')
+        try:
+            clf()
+            graph = self._topology.get_graph()
+            draw(graph, with_labels=True)
+
+            buf = BytesIO()
+            savefig(buf, format='png', bbox_inches='tight')
+            clf()
+
+            return HTTPResponse(content_type='image/png', body=buf.getvalue())
+
+        except Exception as e:
+            console.error('topology_png error: %s', str(e))
+            file.exception('topology_png error')
+            return HTTPResponse(text=str(e), status=500)
 
     @route('test', '/topolinks')
     def topolinks(self, _):
