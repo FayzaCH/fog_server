@@ -514,27 +514,71 @@ class RyuMainAPI(ControllerBase):
     @route('test', '/topology_png')
     def topology(self, _):
         try:
-            graph = self._topology.get_graph()
-            if graph is None or graph.number_of_nodes() == 0:
+            topo = self._topology
+            graph = Graph()
+
+            for node_id in topo.get_nodes():
+                node = topo.get_node(node_id)
+                if node is None:
+                    continue
+
+                label = getattr(node, 'label', str(node_id))
+                gtype = getattr(node, 'type', None)
+
+                if gtype == NodeType.SWITCH:
+                    graph.add_node(node_id, node_type='switch', label=label)
+                else:
+                    graph.add_node(node_id, node_type='host', label=label)
+            links=topo.get_links()
+            for src_id, dsts in links.items():
+                for dst_id in dsts.keys():
+                    if src_id in graph and dst_id in graph:
+                        graph.add_edge(src_id, dst_id)
+
+            if graph.number_of_nodes() == 0:
                 return HTTPResponse(text='No topology available', status=4040)
 
             plt.clf()
             plt.figure(figsize=(14, 10))
-            pos = spring_layout(graph, seed=42, k=0.15)
-            node_colors = []
-            for node in graph.nodes():
-                topo_node = self._topology.get_node(node)
-                if topo_node is not None and topo_node.type == NodeType.SWITCH:
-                    node_colors.append('skyblue')
-                else:
-                    node_colors.append('lightgreen')
+            pos = spring_layout(graph, seed=42, k=0.2)
 
-            draw_networkx_nodes(graph, pos, node_color=node_colors, node_size=700, edgecolors='black')
+            switch_nodes = [
+                n for n, d in graph.nodes(data=True)
+                if d.get('node_type') == 'switch'
+            ]
+            host_nodes = [
+                n for n,d in graph.nodes(data=True)
+                if d.get('node_type') == 'host'
+            ]
+
+            draw_networkx_nodes(
+            graph, pos,
+            nodelist=switch_nodes,
+            node_color='skyblue',
+            node_size=900,
+            edgecolors='black'
+            )
+
+            draw_networkx_nodes(
+            graph, pos,
+            nodelist=host_nodes,
+            node_color='lightgreen',
+            node_size=700,
+            edgecolors='black'
+            )
+
             draw_networkx_edges(graph, pos, width=1.5, edge_color='gray')
-            draw_networkx_labels(graph, pos, font_size=8)
+
+            labels = {
+            n: graph.nodes[n].get('label', str(n))
+            for n in graph.nodes()
+            }
+
+            draw_networkx_labels(graph, pos, labels=labels, font_size=8)
 
             plt.title('Network Topology', fontsize = 14, fontweight='bold')
-
+            plt.axis('off')
+            
             buf = BytesIO()
             plt.savefig(buf, format='png', bbox_inches='tight')
             plt.close()
