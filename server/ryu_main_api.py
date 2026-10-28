@@ -102,8 +102,8 @@ import json
 
 from ryu.app.wsgi import route, Response as HTTPResponse, ControllerBase
 
-from networkx import draw, shortest_path
-from matplotlib.pyplot import savefig, clf
+from networkx import draw, shortest_path, draw_networkx_nodes, draw_networkx_edges, draw_networkx_labels, spring_layer, Graph 
+import matplotlib.pyplot as plt
 
 from model import NodeType, Request, Attempt, Response, Path, CoS
 from ryu_apps.common import (DECOY_IP, DECOY_MAC, MONITOR_PERIOD,
@@ -512,14 +512,53 @@ class RyuMainAPI(ControllerBase):
     @route('test', '/topology_png')
     def topology(self, _):
         try:
-            clf()
+            plt.clf()
             graph = self._topology.get_graph()
-            draw(graph, with_labels=True)
+            switches = set()
+            hosts =set()
+            topo_display = Graph()
+
+            for n in graph.nodes:
+                if self._topology.get_node(n).type == NodeType.SWITCH:
+                    dpid = n.as_dict()['dpid']
+                    switches.add(dpid)
+                    topo_display.add_node(dpid, node_type='switch')
+
+                else:
+                    #host
+                    mac = n.get_main_interface().mac
+                    ipv4 = n.get_main_interface().ipv4
+                    switch_dpid = n.get_main_interface().switch_dpid
+                    port_name = n.get_main_interface().name
+                    host_label = n.get_label()
+                    hosts.add(host_label)
+                    topo_display.add_node(host_label, node_type='host')
+
+            for link in self._topology.get_links():
+                src_node = link.src_node
+                dst_node = link.dst_node
+                topo_display.add_edge(src_node, dst_node)
+
+            plt.figure(figsize=(14,16))
+            pos = spring_layer(topo_display, seed=42, k=0.15)
+
+            switch_nodes = [n for n, attr in topo_display.nodes(data=True) if attr['node_type'] == 'switch']
+            host_nodes = [n for n, attr in topo_display.nodes(data=True) if attr['node_type'] == 'host']
+            
+            draw_networkx_nodes(topo_display, pos, nodelist=switch_nodes, node_color='skyblue', node_size=700, node_shape='o')
+            draw_networkx_nodes(topo_display, pos, nodelist=host_nodes, node_color='lightgreen', node_size=500, node_shape='o')
+            draw_networkx_edges(topo_display, pos, width=1.5, edge_color='gray')
+
+            labels = {node: (node[:6] + '...' if node in switches else node) for node in topo_display.nodes()}
+            draw_networkx_labels(topo_display, pos, labels=labels, font_size=8, font_family='sans-serif')
+
+            plt.title("Graph Topology", fontsize=14, fontweight='bold')
+            plt.axis('off')
 
             buf = BytesIO()
-            savefig(buf, format='png', bbox_inches='tight')
-            clf()
-
+            plt.savefig(buf, format='png', bbox_inches='tight')
+            plt.clf()
+            plt.close() 
             return HTTPResponse(content_type='image/png', body=buf.getvalue())
 
         except Exception as e:
