@@ -102,7 +102,7 @@ import json
 
 from ryu.app.wsgi import route, Response as HTTPResponse, ControllerBase
 
-from networkx import draw, shortest_path, draw_networkx_nodes, draw_networkx_edges, draw_networkx_labels, spring_layer, Graph 
+from networkx import draw, shortest_path, draw_networkx_nodes, draw_networkx_edges, draw_networkx_labels, spring_layout, Graph 
 import matplotlib.pyplot as plt
 
 from model import NodeType, Request, Attempt, Response, Path, CoS
@@ -540,7 +540,7 @@ class RyuMainAPI(ControllerBase):
                 topo_display.add_edge(src_node, dst_node)
 
             plt.figure(figsize=(14,16))
-            pos = spring_layer(topo_display, seed=42, k=0.15)
+            pos = spring_layout(topo_display, seed=42, k=0.15)
 
             switch_nodes = [n for n, attr in topo_display.nodes(data=True) if attr['node_type'] == 'switch']
             host_nodes = [n for n, attr in topo_display.nodes(data=True) if attr['node_type'] == 'host']
