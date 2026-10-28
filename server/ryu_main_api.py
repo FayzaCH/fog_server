@@ -105,7 +105,7 @@ from ryu.app.wsgi import route, Response as HTTPResponse, ControllerBase
 from networkx import shortest_path, draw_networkx_nodes, draw_networkx_edges, draw_networkx_labels, spring_layout, Graph 
 import matplotlib
 matplotlib.use('Agg')
-import matpolib.pyplot as plt
+import matplotlib.pyplot as plt
 
 from model import NodeType, Request, Attempt, Response, Path, CoS
 from ryu_apps.common import (DECOY_IP, DECOY_MAC, MONITOR_PERIOD,
@@ -515,7 +515,7 @@ class RyuMainAPI(ControllerBase):
     def topology(self, _):
         try:
             graph = self._topology.get_graph()
-            if graph is None or graph_number_of_nodes() == 0:
+            if graph is None or graph.number_of_nodes() == 0:
                 return HTTPResponse(text='No topology available', status=4040)
 
             plt.clf()
