@@ -197,7 +197,7 @@ class SimpleSwitchSP13(SimpleSwitch13):
         for u, v in ((src_dpid, dst_dpid), (dst_dpid, src_dpid)):
             if self._net.has_edge(u,v):
                 try:
-                    self._net.remove_edge(src_dpid, dst_dpid)
+                    self._net.remove_edge(u, v)
                 except NetworkXError:
                     file.exception('No edge')
 
