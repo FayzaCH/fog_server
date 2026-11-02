@@ -231,11 +231,13 @@ class SimpleSwitchSP13(SimpleSwitch13):
     @set_ev_cls(EventSwitchLeave)
     def _switch_leave_handler(self, ev):
         dpid = ev.switch.dp.id
+        if not self._net.has_node(dpid):
+            file.warning('Stale switch leave: dpid %s already removed', dpid)
+            return
         try:
             self._net.remove_node(dpid)
-
         except NetworkXError:
-            file.exception('No node')
+            file.warning('Switch %s already removed from topology graph', dpid)
 
         # delete _outs entries for host-switch links (because
         # _link_delete_handler only considers switch-switch links)
