@@ -194,12 +194,13 @@ class SimpleSwitchSP13(SimpleSwitch13):
         link = ev.link
         src_dpid = link.src.dpid
         dst_dpid = link.dst.dpid
+
         for u, v in ((src_dpid, dst_dpid), (dst_dpid, src_dpid)):
-            if self._net.has_edge(u,v):
-                try:
+            try:
+                if self._net.has_edge(u,v):
                     self._net.remove_edge(u, v)
-                except NetworkXError:
-                    file.exception('No edge')
+            except NetworkXError:
+                    file.warning('Stale link delete: %s -> %s already removed', u,v)
 
         # when link is deleted, paths it belonged to become invalid
         # delete them so they are recalculated when needed
