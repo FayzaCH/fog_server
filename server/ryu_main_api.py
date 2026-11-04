@@ -459,10 +459,10 @@ class RyuMainAPI(ControllerBase):
 
     @route('iperf3', '/iperf3/{node_id}/{iface}', methods=['GET'])
     def get_iperf3_target(self, _, node_id, iface):
-        console.info("**** get target for node_id = %s, iface =%s ", str(node_id), str(iface))
+        # console.info("**** get target for node_id = %s, iface =%s ", str(node_id), str(iface))
         # check if resource exists
         node = self._topology.get_node(node_id)
-        console.info("\\**** if node existe node = %s", str(node))
+        #console.info("\\**** if node existe node = %s", str(node))
         
         if not node:
             try:
