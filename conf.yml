@@ -42,10 +42,10 @@ NETWORK:
     # range format <start_IP>:<end_IP>
   IP_POOL: >
     10.0.0.1:10.0.0.5,
-    10.10.0.10:10.10.0.12,
-    10.20.0.10:10.20.0.12,
+    10.10.0.10:10.10.0.100,
+    10.20.0.10:10.20.0.100,
     10.20.0.101,
-    10.30.0.10:10.30.0.12,
+    10.30.0.10:10.30.0.100,
     10.30.0.100,
     10.50.0.10,
     10.10.0.254,
@@ -91,7 +91,7 @@ ORCHESTRATOR:
     # options for AHP are AHP (default is AHP)
   PATH_WEIGHT: AHP
 
-  PATH_RELAX: FALSE
+  PATH_RELAX: TRUE
 
 PROTOCOL:
   # requests destination (default is NONE)
