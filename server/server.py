@@ -17,6 +17,8 @@ from logging import INFO, WARNING
 from logger import console, file
 import config
 
+import sys
+
 
 _controller_verbose = getenv('CONTROLLER_VERBOSE', '').upper()
 if _controller_verbose not in ('TRUE', 'FALSE'):
@@ -50,6 +52,13 @@ RYU_BIN_PATH = join(RYU_PATH, 'bin', 'ryu')
 
 RYU_MAIN_PATH = dirname(abspath(__file__)) + '/ryu_main.py'
 
+# Adding overhead_prob application as an argument to ryu
+EXTRA_APPS = [abspath(a) for a in sys.argv[1:] if a.endswith('.py')]
+for _app in EXTRA_APPS:
+    if not exists(_app):
+        console.warning('Extra app not found: %s', _app)
+
+
 ####
 import logging
 logging.getLogger('ryu.controller.ofp_handler').setLevel(logging.DEBUG)
@@ -57,7 +66,7 @@ logging.getLogger('ryu.ofproto').setLevel(logging.DEBUG)
 ###
 def serve():
     cmd = [RYU_BIN_PATH if exists(RYU_BIN_PATH) else 'ryu', 'run',
-           RYU_MAIN_PATH, '--observe-links', '--ofp-tcp-listen-port',
+           RYU_MAIN_PATH, *EXTRA_APPS,'--observe-links', '--ofp-tcp-listen-port',
            str(OFP_PORT), '--wsapi-port', str(API_PORT)]
     try:
         run(cmd)
