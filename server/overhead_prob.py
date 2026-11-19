@@ -50,5 +50,5 @@ class OverheadProb(app_manager.RyuApp):
                              self.proc.memory_info().rss / 1e6, len(self.dps),
                              d["pktin"], d["lldp"], d["port_reply"], 
                              d["flow_reply"], d["reply_bytes"]])
-        self.f.flush()
+            self.f.flush()
     
