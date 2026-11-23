@@ -372,7 +372,7 @@ class _AHPCostPathSelection(_PathSelection):
             ret = []
 
         elif strategy == BEST:
-            best_Upath = float('inf')
+            best_Upath = float('-inf')
             best_path = None
             best_relaxed = None
         else:
@@ -412,14 +412,14 @@ class _AHPCostPathSelection(_PathSelection):
                     ret.append({'path': c['path'], 'length': Upath,
                                   'relaxed': relaxed})
                 elif strategy == BEST:
-                    if Upath > best_Upath:
+                    if best_path is None or (relaxed, -Upath) < (best_relaxed, -best_Upath):
                         best_Upath = Upath
                         best_path = c['path']
                         best_relaxed = relaxed
 
 
         if not strategy or strategy == ALL:
-            ret.sort(key=lambda x: x['length'], reverse = True)
+            ret.sort(key=lambda x: (x['relaxed'],-x['length']))
             return ret
 
         else: # strategy == BEST
