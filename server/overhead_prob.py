@@ -15,6 +15,7 @@ class OverheadProb(app_manager.RyuApp):
         self.f = open(ROOT_PATH + '/data/ctrl_overhead.csv', 'w', newline='')
         self.w =csv.writer(self.f)
         self.w.writerow(["t", "cpu_pct", "rss_mb", "n_dp", "pktin_s", "lldp_s", "port_reply_s", "flow_reply_s", "reply_B_s"])
+        self.proc.cpu_percent(None)
         hub.spawn(self._sampler)
 
 
