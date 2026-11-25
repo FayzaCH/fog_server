@@ -185,7 +185,7 @@ class _LeastCostPathSelection(_PathSelection):
                 EPSILON  = 1e-9
 
             # 1. Bandwidth cost
-            BWc = req.get_min_bandwidth
+            BWc = req.get_min_bandwidth()
             remaining_bw = BWp - BWc
             if remaining_bw <= 0:
                 return float('inf')
@@ -224,7 +224,7 @@ class _LeastCostPathSelection(_PathSelection):
                 Cpath = float('inf')
 
             if not strategy or strategy == ALL:
-                ret.append(ret, {'path': path, 'length': Cpath})
+                ret.append({'path': path, 'length': Cpath})
 
             elif strategy == BEST:
                 if Cpath < best_Cpath:
