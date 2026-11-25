@@ -82,7 +82,7 @@ ORCHESTRATOR:
   NODE_ALGORITHM: SIMPLE
 
   # path selection algorithm
-    # options are DIJKSTRA | LEASTCOST (default is DIJKSTRA)
+    # options are DIJKSTRA | LEASTCOST | AHP  (default is DIJKSTRA)
   PATH_ALGORITHM: AHP
 
   # path weights considered
@@ -92,6 +92,8 @@ ORCHESTRATOR:
   PATH_WEIGHT: AHP
 
   PATH_RELAX: TRUE
+
+  PATH_STRATEGY: ALL #ALL ou BEST
 
 PROTOCOL:
   # requests destination (default is NONE)

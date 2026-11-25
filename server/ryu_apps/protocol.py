@@ -441,7 +441,7 @@ class Protocol(RyuApp):
                 # the paths are then tried best (least cost) to worst
                 t_start = time()
                 paths = PathSelector(PATH_ALGO).select(
-                    self._topology, hosts, req, PATH_WEIGHT, relax = PATH_RELAX)
+                    self._topology, hosts, req, PATH_WEIGHT, strategy = PATH_STRATEGY,relax = PATH_RELAX)
                 algo_time = time() - t_start
                 if paths:
                     spawn(self._save_paths, _req_id, att_no, paths, algo_time)

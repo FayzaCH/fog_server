@@ -137,13 +137,22 @@ if PROTO_SEND_TO == SEND_TO_ORCHESTRATOR:
                                     'conf.yml. Defaulting to FALSE')
                     file.warning('ORCHESTRATOR:PATH_RELAX parameter (%s) '
                                  'invalid or mising from conf.yml', _path_relax)
-                    path_relax = 'FALSE'
+                    _path_relax = 'FALSE'
                 _path_relax = _path_relax == 'TRUE'
+
+            # PATH_STRATEGY applies to all path algorithms ('ALL' or 'BEST')
+            _path_strategy = getenv('ORCHESTRATOR_PATH_STRATEGY', '').upper()
+            if _path_strategy not in ('ALL', 'BEST'):
+                console.warning('ORCHESTRATOR_PATH_STRATEGY parameter invalid or missing from conf.yml. Defaulting to ALL')
+                file.warning('ORCHESTRATOR_PATH_STRATEGY parameter invalid or missing from conf.yml. Defaulting to ALL')
+                _path_strategy = 'ALL'
+
 
 NODE_ALGO = _node_algo
 PATH_ALGO = _path_algo
 PATH_WEIGHT = _path_weight
 PATH_RELAX = _path_relax
+PATH_STRATEGY = _path_strategy
 
 try:
     MONITOR_PERIOD = float(getenv('MONITOR_PERIOD', None))
