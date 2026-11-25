@@ -365,7 +365,9 @@ class _AHPCostPathSelection(_PathSelection):
         for path in raw_paths:
             try:
                 metrics = calc_metrics(path)
-            except:
+            except Exception as exec:
+                console.error('Exception occurred while calculating metrics for path %s:%s', path, exec)
+                file.error('Exception occurred while calculating metrics for path %s:%s', path, exec)
                 metrics = None
             if metrics is not None and (relax or metrics['feasible']):
                 candidates.append(metrics)    
