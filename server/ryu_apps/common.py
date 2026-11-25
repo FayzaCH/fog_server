@@ -98,6 +98,7 @@ _node_algo = PROTO_SEND_TO
 _path_algo = 'STP'
 _path_weight = None
 _path_relax = False
+_path_strategy = 'ALL'
 if PROTO_SEND_TO == SEND_TO_ORCHESTRATOR:
     _node_algo = getenv('ORCHESTRATOR_NODE_ALGORITHM', None)
     if _node_algo not in NODE_ALGORITHMS:
