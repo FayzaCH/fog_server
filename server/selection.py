@@ -220,7 +220,9 @@ class _LeastCostPathSelection(_PathSelection):
         for path in paths:
             try:
                 Cpath = calc_cost(path)
-            except:
+            except Exception as exec :
+                console.error('Exception occurred while calculating cost for path %s:%s',path, exec)
+                file.error('Exception occurred while calculating cost for path %s:%s',path, exec)
                 Cpath = float('inf')
 
             if not strategy or strategy == ALL:
