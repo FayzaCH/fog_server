@@ -238,6 +238,10 @@ class _LeastCostPathSelection(_PathSelection):
             return ret
 
         elif strategy == BEST:
+            if best_path is None:
+                console.warning('No feasible path found for BEST strategy for request %s', req)
+                file.warning('No feasible path found for BEST strategy for request %s', req)
+                return []
             return [{'path': best_path, 'length': best_Cpath}]
 
         else:
@@ -427,6 +431,10 @@ class _AHPCostPathSelection(_PathSelection):
             return ret
 
         else: # strategy == BEST
+            if best_path is None:
+                console.warning('No feasible path found for BEST strategy for request %s', req)
+                file.warning('No feasible path found for BEST strategy for request %s', req)
+                return []
             return [{'path': best_path, 'length': best_Upath,
                       'relaxed': best_relaxed}]
 
