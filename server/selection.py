@@ -26,7 +26,7 @@
     rate evaluated for each CoS using the Analytic Hierarchy Process (AHP) Method.
 '''
 
-from math import isnan
+from math import isfinite, isnan
 from networkx import single_source_dijkstra, all_simple_paths
 
 from model import Topology, Node, Request
@@ -172,13 +172,29 @@ class _LeastCostPathSelection(_PathSelection):
                 Pi = topo.get_link(path[i-1], path[i])
                 if Pi is None:
                     return None
-                
-                free_bw = Pi.get_bandwidth()
 
-                BWp = min(BWp, free_bw)
-                Dp += Pi.get_delay()
-                Jp += Pi.get_jitter()
-                success_rate *= (1.0 -Pi.get_loss_rate())
+                bandwidth = Pi.get_bandwidth()
+                delay = Pi.get_delay()
+                jitter = Pi.get_jitter()
+                loss_rate = Pi.get_loss_rate()
+                if not all(isfinite(value) for value in 
+                           (bandwidth, delay, jitter, loss_rate)):
+                    console.warning(
+                        'Unvalable measure for link %s -> %s;'
+                        'Exclude path %s',
+                        path[i-1], path[i], path
+                    )
+                    file.warning(
+                        'Unvalable measure for link %s -> %s;'
+                        'Exclude path %s',
+                        path[i-1], path[i], path
+                    )
+                    return None
+
+                BWp = min(BWp, bandwidth)
+                Dp += delay
+                Jp += jitter
+                success_rate *= (1.0 - loss_rate)
 
             LRp = 1.0 - success_rate
             relaxed = (BWp < req.get_min_bandwidth()
