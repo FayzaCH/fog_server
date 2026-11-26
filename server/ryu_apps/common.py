@@ -5,7 +5,7 @@ from logging import INFO, WARNING
 from ryu.base.app_manager import lookup_service_brick
 from ryu.lib.hub import sleep
 
-from selection import NODE_ALGORITHMS, PATH_ALGORITHMS, PATH_WEIGHTS, AHP_PATH
+from selection import NODE_ALGORITHMS, PATH_ALGORITHMS, PATH_WEIGHTS, AHP_PATH, LEASTCOST_PATH
 from logger import console, file
 from consts import *
 import config
@@ -130,8 +130,8 @@ if PROTO_SEND_TO == SEND_TO_ORCHESTRATOR:
                                 'invalid or missing from conf.yml. '
                                 'Defaulting to %s', str(_path_weight))
 
-            # PATH_RELAX only applies to the AHP path algorithm.
-            if _path_algo == AHP_PATH:
+            # PATH_RELAX applied to LEASTCOST (CBP) and AHP path algorithm.
+            if _path_algo in (AHP_PATH, LEASTCOST_PATH):
                 _path_relax = getenv('ORCHESTRATOR_PATH_RELAX', '').upper()
                 if _path_relax not in ('TRUE', 'FALSE'):
                     console.warning('ORCHESTRATOR:PATH_RELAX parameter invalid or mising from '

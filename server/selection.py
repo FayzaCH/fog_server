@@ -26,6 +26,7 @@
     rate evaluated for each CoS using the Analytic Hierarchy Process (AHP) Method.
 '''
 
+from math import isnan
 from networkx import single_source_dijkstra, all_simple_paths
 
 from model import Topology, Node, Request
@@ -157,10 +158,10 @@ class _LeastCostPathSelection(_PathSelection):
     def select(self, topo: Topology, targets: list, req: Request,
                weight: str = '', strategy: str = '', relax:  bool = False,
                cutoff: int =None):
-        def calc_cost(path: list) -> float:
+        def calc_metrics(path: list):
             len_path = len(path)
             if len_path < 2:
-                return float('inf')
+                return None
             
             BWp = float('inf')      # Path free bandwidth min
             Dp = 0.0                # Path total delay
@@ -170,7 +171,7 @@ class _LeastCostPathSelection(_PathSelection):
             for i in range(1, len_path):
                 Pi = topo.get_link(path[i-1], path[i])
                 if Pi is None:
-                    return float('inf')
+                    return None
                 
                 free_bw = Pi.get_bandwidth()
 
@@ -178,12 +179,16 @@ class _LeastCostPathSelection(_PathSelection):
                 Dp += Pi.get_delay()
                 Jp += Pi.get_jitter()
                 success_rate *= (1.0 -Pi.get_loss_rate())
-            # Path loss rate : 1- \prod (1 -lr_l)
-                
-                LRp = 1.0 - success_rate
 
-                EPSILON  = 1e-9
+            LRp = 1.0 - success_rate
+            relaxed = (BWp < req.get_min_bandwidth()
+                       or Dp > req.get_max_delay()
+                       or Jp > req.get_max_jitter()
+                       or LRp > req.get_max_loss_rate())
+            return BWp, Dp, Jp, LRp, relaxed
 
+        def calc_cost(BWp, Dp, Jp, LRp):
+            EPSILON = 1e-9
             # 1. Bandwidth cost
             BWc = req.get_min_bandwidth()
             remaining_bw = BWp - BWc
@@ -199,10 +204,15 @@ class _LeastCostPathSelection(_PathSelection):
 
             # 3. Final constraint-based metric : phi_p
             denom_phi = CDp * CJp * CLRp
+            if isnan(denom_phi):
+                raise ValueError('LEASTCOST denominator is NaN')
             if denom_phi <= 0:
                 return float('inf')
             
-            return CBWp / denom_phi
+            cost = CBWp / denom_phi
+            if isnan(cost):
+                raise ValueError('LEASTCOST cost is NaN')
+            return cost
         
         graph = topo.get_graph()
         cutoff = _default_cutoff(topo, cutoff)
@@ -212,44 +222,48 @@ class _LeastCostPathSelection(_PathSelection):
 
         if not strategy or strategy == ALL:
             ret = []
-
-        if strategy == BEST:
-            best_Cpath = float('inf')
-            best_path = None
-
-        for path in paths:
-            try:
-                Cpath = calc_cost(path)
-            except Exception as exec :
-                console.error('Exception occurred while calculating cost for path %s:%s',path, exec)
-                file.error('Exception occurred while calculating cost for path %s:%s',path, exec)
-                Cpath = float('inf')
-
-            if not strategy or strategy == ALL:
-                ret.append({'path': path, 'length': Cpath})
-
-            elif strategy == BEST:
-                if Cpath < best_Cpath:
-                    best_Cpath = Cpath
-                    best_path = path
-
-        if not strategy or strategy == ALL:
-            ret.sort(key=lambda x: x['length'])
-            return ret
-
         elif strategy == BEST:
-            if best_path is None:
-                console.warning('No feasible path found for BEST strategy for request %s', req)
-                file.warning('No feasible path found for BEST strategy for request %s', req)
-                return []
-            return [{'path': best_path, 'length': best_Cpath}]
-
+            best = None
         else:
             console.error('%s strategy not applicable in %s algorithm',
                           strategy, LEASTCOST_PATH)
             file.error('%s strategy not applicable in %s algorithm',
                        strategy, LEASTCOST_PATH)
             return []
+
+        for path in paths:
+            try:
+                metrics = calc_metrics(path)
+                if metrics is None:
+                    continue
+                BWp, Dp, Jp, LRp, relaxed = metrics
+                if relaxed and not relax:
+                    continue
+                Cpath = calc_cost(BWp, Dp, Jp, LRp)
+            except Exception as exc:
+                console.error('Exception occurred while calculating cost for path %s: %s', path, exc)
+                file.error('Exception occurred while calculating cost for path %s', path)
+                raise
+
+            result = {'path': path, 'length': Cpath, 'relaxed': relaxed}
+
+            if not strategy or strategy == ALL:
+                ret.append(result)
+
+            elif strategy == BEST:
+                if best is None or (relaxed, Cpath) < (best['relaxed'], best['length']):
+                    best = result
+
+        if not strategy or strategy == ALL:
+            ret.sort(key=lambda x: (x['relaxed'], x['length']))
+            return ret
+
+        elif strategy == BEST:
+            if best is None:
+                console.warning('No eligible path found for BEST strategy for request %s', req)
+                file.warning('No eligible path found for BEST strategy for request %s', req)
+                return []
+            return [best]
 
 class _AHPCostPathSelection(_PathSelection):
     def select(self, topo: Topology, targets: list, req: Request,
@@ -558,9 +572,10 @@ class PathSelector:
             or COST) and given strategy (ALL or BEST). Default weight is HOP 
             (all edges are equal). Default strategy is ALL.
 
-            relax (only for AHP Algorithm; ignored for other algorithms) : if True, every 
+            relax (for AHP and CBP (LEASTCOST); ignored by DIJKSTRA) : if True, every 
             structurally valid path is considered, even if it doesn't meet the hard requirements
-            of bw, delay, jitter, and loss rate. Default is faulse.
+            of bw, delay, jitter, and loss rate. Default is False. Non-relaxed
+            paths are preferred over relaxed paths.
 
             cutoff (only for LEASTCOST and AHP algorithms; ignored by DIJKSTRA) : maximum
             path length in hops considered. Bounds the number of simple paths explored,
